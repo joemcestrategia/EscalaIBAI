@@ -1,0 +1,30 @@
+﻿Analyzing EscalaIBAI...                                         
+
+   info - Don't invoke 'print' in production code - lib\core\repositories\membros_repository.dart:74:15 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\repositories\membros_repository.dart:80:7 - avoid_print
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\configuracoes\config_screen.dart:26:19 - prefer_const_literals_to_create_immutables
+   info - Don't use 'BuildContext's across async gaps - lib\features\configuracoes\config_screen.dart:736:26 - use_build_context_synchronously
+warning - Unnecessary cast - lib\features\configuracoes\config_screen.dart:759:50 - unnecessary_cast
+warning - Unnecessary cast - lib\features\configuracoes\config_screen.dart:761:27 - unnecessary_cast
+   info - Don't use 'BuildContext's across async gaps - lib\features\configuracoes\config_screen.dart:773:7 - use_build_context_synchronously
+warning - The operand can't be 'null', so the condition is always 'false' - lib\features\configuracoes\config_screen.dart:859:40 - unnecessary_null_comparison
+warning - The '!' will have no effect because the receiver can't be null - lib\features\configuracoes\config_screen.dart:862:54 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\configuracoes\config_screen.dart:863:52 - unnecessary_non_null_assertion
+warning - Unnecessary cast - lib\features\configuracoes\config_screen.dart:866:62 - unnecessary_cast
+warning - Unnecessary cast - lib\features\configuracoes\config_screen.dart:868:48 - unnecessary_cast
+warning - The '!' will have no effect because the receiver can't be null - lib\features\configuracoes\config_screen.dart:884:56 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\configuracoes\config_screen.dart:885:54 - unnecessary_non_null_assertion
+warning - Unused import: '../../../core/models/membro.dart' - lib\features\escala\modais\modal_gerar_escala.dart:6:8 - unused_import
+warning - Unused import: '../../../core/models/compatibilidade.dart' - lib\features\escala\modais\modal_gerar_escala.dart:7:8 - unused_import
+warning - Unused import: 'package:url_launcher/url_launcher.dart' - lib\features\home\home_screen.dart:5:8 - unused_import
+warning - Unused import: '../../core/models/compatibilidade.dart' - lib\features\membros\membros_screen.dart:10:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - lib\features\membros\membros_screen.dart:310:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\membros\membros_screen.dart:310:52 - prefer_const_constructors
+   info - Don't use 'BuildContext's across async gaps - lib\features\membros\membros_screen.dart:505:15 - use_build_context_synchronously
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:371:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:371:52 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:501:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:501:50 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:644:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\musicas\musicas_screen.dart:644:50 - prefer_const_constructors
+

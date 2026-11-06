@@ -1,0 +1,14 @@
+.dart_tool/
+.git/
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+integration_test/
+node_modules/
+*.iml
+.idea/
+build/
+deploy_temp/

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "927407539645",
+    "project_id": "escalaibai",
+    "storage_bucket": "escalaibai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:927407539645:android:6a99ca446e8fc24a523ed4",
+        "android_client_info": {
+          "package_name": "com.escalaibai.escala_ibai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBawhsNlvb2msLFs83CiTVTOtNnapcTQBE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

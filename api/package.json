@@ -1,0 +1,8 @@
+{
+  "name": "escala-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

@@ -1,0 +1,63 @@
+name: escala_ibai
+description: Igreja Admin — Sistema de Gestão de Escala e Membros
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.5.6
+  flutter_riverpod: ^2.5.1
+  google_fonts: ^6.2.1
+  table_calendar: ^3.1.2
+  shared_preferences: ^2.3.2
+  url_launcher: ^6.3.0
+  intl: ^0.19.0
+  shimmer: ^3.0.0
+  flutter_slidable: ^3.1.0
+  phosphor_flutter: ^2.1.0
+  http: ^1.2.1
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  youtube_explode_dart: ^3.0.5
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+  home_widget: ^0.9.4
+  webview_flutter: ^4.14.1
+  package_info_plus: ^8.1.0
+  dio: ^5.4.3
+  open_filex: ^4.5.0
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+  test: ^1.26.3
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#0F172A"
+    theme_color: "#0F172A"
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#0F172A"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+  fonts: []
+
