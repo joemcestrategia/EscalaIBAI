@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -940,10 +942,29 @@ class _YouTubeSearchDialogState extends State<_YouTubeSearchDialog> {
   }
 
   Future<void> _fazerBusca() async {
-    if (_busca.text.trim().isEmpty) return;
+    final queryText = _busca.text.trim();
+    if (queryText.isEmpty) return;
     setState(() => _loading = true);
     try {
-      final searchList = await _yt.search.search(_busca.text.trim());
+      if (kIsWeb) {
+        final queryParam = Uri.encodeComponent(queryText);
+        final url = Uri.base.resolve('/api/youtube_search?q=$queryParam');
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final List data = jsonDecode(response.body) as List;
+          setState(() {
+            _resultados = data.map((v) => {
+              'title': v['title']?.toString() ?? '',
+              'url': v['url']?.toString() ?? '',
+              'author': v['author']?.toString() ?? '',
+              'duration': v['duration']?.toString() ?? '',
+            }).toList();
+          });
+          return;
+        }
+      }
+
+      final searchList = await _yt.search.search(queryText);
       setState(() {
         _resultados = searchList.map((v) => {
           'title': v.title,
