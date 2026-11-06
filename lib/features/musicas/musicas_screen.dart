@@ -922,12 +922,14 @@ class _YouTubeSearchDialogState extends State<_YouTubeSearchDialog> {
   late TextEditingController _busca;
   bool _loading = false;
   List<Map<String, String>> _resultados = [];
-  late final yt_explode.YoutubeExplode _yt;
+  yt_explode.YoutubeExplode? _yt;
 
   @override
   void initState() {
     super.initState();
-    _yt = yt_explode.YoutubeExplode(httpClient: yt_explode.YoutubeHttpClient(CorsClient()));
+    if (!kIsWeb) {
+      _yt = yt_explode.YoutubeExplode(httpClient: yt_explode.YoutubeHttpClient(CorsClient()));
+    }
     _busca = TextEditingController(text: widget.initialQuery);
     if (widget.initialQuery.isNotEmpty) {
       _fazerBusca();
@@ -937,7 +939,7 @@ class _YouTubeSearchDialogState extends State<_YouTubeSearchDialog> {
   @override
   void dispose() {
     _busca.dispose();
-    _yt.close();
+    _yt?.close();
     super.dispose();
   }
 
@@ -961,18 +963,22 @@ class _YouTubeSearchDialogState extends State<_YouTubeSearchDialog> {
             }).toList();
           });
           return;
+        } else {
+          throw Exception('Falha ao consultar servidor (${response.statusCode})');
         }
       }
 
-      final searchList = await _yt.search.search(queryText);
-      setState(() {
-        _resultados = searchList.map((v) => {
-          'title': v.title,
-          'url': 'https://www.youtube.com/watch?v=${v.id.value}',
-          'author': v.author,
-          'duration': v.duration?.toString().split('.').first ?? '',
-        }).toList();
-      });
+      if (_yt != null) {
+        final searchList = await _yt!.search.search(queryText);
+        setState(() {
+          _resultados = searchList.map((v) => {
+            'title': v.title,
+            'url': 'https://www.youtube.com/watch?v=${v.id.value}',
+            'author': v.author,
+            'duration': v.duration?.toString().split('.').first ?? '',
+          }).toList();
+        });
+      }
     } catch (e) {
       if (mounted) AppSnackbar.show(context, 'Erro ao buscar: $e', erro: true);
     } finally {
