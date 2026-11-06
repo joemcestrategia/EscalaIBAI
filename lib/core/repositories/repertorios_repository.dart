@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/repertorio.dart';
 
@@ -38,16 +39,18 @@ class RepertoriosRepository {
       'lista_musicas': listaMusicas,
     }, onConflict: 'data_culto,hora_culto');
 
-    // 2. Dispara notificação push
-    try {
-      await _db.functions.invoke('notificar-repertorio', body: {
-        'dataCulto': data,
-        'horaCulto': hora,
-        'qtdMusicas': listaMusicas.length,
-      });
-    } catch (e) {
-      // Falha silenciosa para não quebrar a UI
-      print('Erro ao invocar notificar-repertorio: $e');
+    // 2. Dispara notificação push para todos quando há músicas na playlist
+    if (listaMusicas.isNotEmpty) {
+      try {
+        await _db.functions.invoke('notificar-repertorio', body: {
+          'dataCulto': data,
+          'horaCulto': hora,
+          'qtdMusicas': listaMusicas.length,
+        });
+      } catch (e) {
+        // Falha silenciosa para não quebrar a UI
+        debugPrint('Erro ao invocar notificar-repertorio: $e');
+      }
     }
   }
 

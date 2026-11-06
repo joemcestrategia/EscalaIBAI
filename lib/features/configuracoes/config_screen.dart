@@ -12,6 +12,8 @@ import '../../core/models/funcao.dart';
 import '../../core/models/compatibilidade.dart';
 import '../../core/models/ministerio.dart';
 import '../../core/services/update_service.dart';
+import '../../core/services/notification_service.dart';
+import '../splash/quem_sou_eu_screen.dart';
 import '../../shared/widgets/app_widgets.dart';
 
 class ConfigScreen extends ConsumerWidget {
@@ -30,6 +32,12 @@ class ConfigScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          const _SecaoExpansivel(
+            titulo: 'Meu Perfil',
+            icone: PhosphorIconsBold.userCircle,
+            child: _MeuPerfilNotificacoesConfig(),
+          ),
+          const SizedBox(height: 8),
           const _SecaoExpansivel(
             titulo: 'Aparência',
             icone: PhosphorIconsBold.palette,
@@ -138,6 +146,7 @@ class ConfigScreen extends ConsumerWidget {
               );
 
               if (confirm == true) {
+                await NotificationService.cancelarTodas();
                 await ref.read(userRoleProvider.notifier).logout();
                 ref.invalidate(userRoleProvider);
               }
@@ -189,6 +198,86 @@ class _SecaoExpansivel extends StatelessWidget {
 }
 
 
+
+// ─── Meu Perfil ───────────────────────────────────────────────────────────────
+class _MeuPerfilNotificacoesConfig extends ConsumerStatefulWidget {
+  const _MeuPerfilNotificacoesConfig();
+
+  @override
+  ConsumerState<_MeuPerfilNotificacoesConfig> createState() =>
+      _MeuPerfilNotificacoesConfigState();
+}
+
+class _MeuPerfilNotificacoesConfigState
+    extends ConsumerState<_MeuPerfilNotificacoesConfig> {
+  @override
+  Widget build(BuildContext context) {
+    final role = ref.watch(userRoleProvider);
+    final roleNotifier = ref.watch(userRoleProvider.notifier);
+    final nomeMembro = roleNotifier.selectedMembroNome ?? 'Não selecionado';
+    final perfilStr = role == UserRole.lider ? 'Líder' : 'Membro';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.acento.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.acento.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Membro vinculado neste aparelho:',
+                style: AppTextStyles.bodySmall(color: context.textoSecund),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$nomeMembro ($perfilStr)',
+                style: AppTextStyles.subheading(color: AppColors.acento),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '• Culto à Tarde/Noite: aviso às 08:00 do dia e 1h antes (individual)\n'
+                '• Culto pela Manhã: aviso na noite anterior às 20:00 e 1h antes (individual)\n'
+                '• Ministros de Louvor: aviso 2 dias antes às 20:00 para montar a playlist (individual)\n'
+                '• Escala de Jejum: aviso às 20:00 da véspera e 06:00 do dia (individual)\n'
+                '• Nova Playlist de Culto: aviso enviado para todos do app',
+                style: AppTextStyles.bodySmall(color: context.textoSecund),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppButton(
+          label: 'Trocar Meu Nome na Escala',
+          outlined: true,
+          icon: PhosphorIconsBold.userSwitch,
+          width: double.infinity,
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => QuemSouEuScreen(
+                  role: role,
+                  isReconfiguration: true,
+                  onMemberSelected: () {
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ),
+            );
+            if (mounted) setState(() {});
+          },
+        ),
+      ],
+    );
+  }
+}
 
 // ─── Agenda Config ────────────────────────────────────────────────────────────
 class _AgendaConfig extends ConsumerWidget {

@@ -10,6 +10,21 @@ param (
 
 $ErrorActionPreference = "Stop"
 
+try {
+    $Host.UI.RawUI.WindowTitle = "🚀 Publicador OTA - EscalaIBAI"
+} catch {}
+
+trap {
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Red
+    Write-Host "[PROCESSO: ERRO ❌] Diagnóstico da falha: $_" -ForegroundColor Red
+    Write-Host "==========================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Pressione ENTER para fechar esta janela..." -ForegroundColor Yellow
+    Read-Host
+    exit 1
+}
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "     🚀 Publicação de Atualização OTA - EscalaIBAI        " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -24,9 +39,9 @@ $headers = @{
     "Prefer"        = "return=representation"
 }
 
-# 2. Ler versão do pubspec.yaml
+Write-Host "[PROCESSO: 10%] Lendo versão atual do pubspec.yaml..." -ForegroundColor Cyan
 if (-not (Test-Path "pubspec.yaml")) {
-    Write-Error "Arquivo pubspec.yaml não encontrado. Execute a partir da raiz do projeto."
+    Write-Error "[PROCESSO: ERRO ❌] Arquivo pubspec.yaml não encontrado. Execute a partir da raiz do projeto."
 }
 
 $pubspecContent = Get-Content "pubspec.yaml" -Raw
@@ -94,30 +109,30 @@ Write-Host "----------------------------------------------------------" -Foregro
 Write-Host ""
 
 # 5. Atualizar pubspec.yaml
-Write-Host "Atualizando pubspec.yaml para $nextVersionName+$nextVersionCode..." -ForegroundColor Cyan
+Write-Host "[PROCESSO: 25%] Atualizando pubspec.yaml para $nextVersionName+$nextVersionCode..." -ForegroundColor Cyan
 $newPubspec = [regex]::Replace($pubspecContent, 'version:\s*[0-9\.]+\+[0-9]+', "version: $nextVersionName+$nextVersionCode")
 Set-Content -Path "pubspec.yaml" -Value $newPubspec -NoNewline
-Write-Host "pubspec.yaml atualizado." -ForegroundColor Green
+Write-Host "[PROCESSO: 30%] pubspec.yaml atualizado com sucesso." -ForegroundColor Green
 
 # 6. Compilar APK Release
 Write-Host ""
-Write-Host "Compilando APK Release (flutter build apk --release)..." -ForegroundColor Cyan
+Write-Host "[PROCESSO: 35%] Compilando APK Release (flutter build apk --release)..." -ForegroundColor Cyan
 $buildOutput = flutter build apk --release
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Falha na compilação do APK Release!"
+    Write-Error "[PROCESSO: ERRO ❌] Falha na compilação do APK Release! Verifique o log do Gradle."
 }
 
 $apkPath = "build\app\outputs\flutter-apk\app-release.apk"
 if (-not (Test-Path $apkPath)) {
-    Write-Error "APK não encontrado em $apkPath após o build."
+    Write-Error "[PROCESSO: ERRO ❌] APK não encontrado em $apkPath após o build."
 }
 
 $apkSizeMB = [math]::Round(((Get-Item $apkPath).Length / 1MB), 2)
-Write-Host "APK gerado com sucesso ($apkSizeMB MB) em $apkPath" -ForegroundColor Green
+Write-Host "[PROCESSO: 70%] APK Release gerado com sucesso ($apkSizeMB MB)!" -ForegroundColor Green
 
 # 7. Criar Tag e Release no GitHub
 Write-Host ""
-Write-Host "Publicando Release no GitHub ($tagName)..." -ForegroundColor Cyan
+Write-Host "[PROCESSO: 80%] Publicando Release no GitHub ($tagName)..." -ForegroundColor Cyan
 
 # Commit e push do pubspec.yaml
 git add pubspec.yaml
@@ -131,7 +146,7 @@ git push origin $tagName -ErrorAction SilentlyContinue
 # GitHub Release via CLI
 gh release create $tagName $apkPath --title "Release $nextVersionName" --notes "$Changelog"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Aviso: 'gh release create' retornou código não-zero, tentando obter asset url..." -ForegroundColor Yellow
+    Write-Host "[PROCESSO: AVISO ⚠️] 'gh release create' retornou código não-zero, tentando obter asset url..." -ForegroundColor Yellow
 }
 
 # Obter URL do asset
@@ -141,12 +156,12 @@ if (-not $apkUrl) {
     $apkUrl = "$repoUrl/releases/download/$tagName/app-release.apk"
 }
 
-Write-Host "Release publicada com sucesso no GitHub!" -ForegroundColor Green
+Write-Host "[PROCESSO: 90%] Release publicada com sucesso no GitHub!" -ForegroundColor Green
 Write-Host "URL do APK: $apkUrl" -ForegroundColor Green
 
 # 8. Registrar no Supabase
 Write-Host ""
-Write-Host "Registrando nova versão no Supabase..." -ForegroundColor Cyan
+Write-Host "[PROCESSO: 95%] Registrando nova versão no Supabase..." -ForegroundColor Cyan
 
 $payload = @{
     "platform"      = "android"
@@ -160,10 +175,10 @@ $payload = @{
 if ($tableExists) {
     try {
         $insertRes = Invoke-RestMethod -Uri "$supabaseUrl/rest/v1/app_versions" -Headers $headers -Method Post -Body $payload
-        Write-Host "✅ Nova versão registrada com sucesso no Supabase!" -ForegroundColor Green
+        Write-Host "[PROCESSO: 100%] ✅ Nova versão registrada com sucesso no Supabase!" -ForegroundColor Green
         Write-Host "O app notificará todos os usuários automaticamente na próxima abertura!" -ForegroundColor Green
     } catch {
-        Write-Host "Erro ao inserir no Supabase: $_" -ForegroundColor Red
+        Write-Host "[PROCESSO: ERRO ❌] Erro ao inserir no Supabase: $_" -ForegroundColor Red
         Write-Host "Detalhes: $($_.Exception.Response)" -ForegroundColor Yellow
     }
 } else {
@@ -177,5 +192,9 @@ if ($tableExists) {
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "🎉 PROCESSO CONCLUÍDO COM SUCESSO! Versão $tagName no ar!" -ForegroundColor Green
+Write-Host "🎉 PROCESSO CONCLUÍDO COM SUCESSO (100%)! Versão $tagName no ar!" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Pressione ENTER para fechar esta janela..." -ForegroundColor Cyan
+Read-Host
+

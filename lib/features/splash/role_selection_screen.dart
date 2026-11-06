@@ -104,9 +104,16 @@ class RoleSelectionScreen extends ConsumerWidget {
                       ),
                     );
 
-                    if (senhaValida == true) {
-                      await ref.read(userRoleProvider.notifier).setRole(UserRole.lider);
-                      onRoleSelected();
+                    if (senhaValida == true && context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => QuemSouEuScreen(
+                            role: UserRole.lider,
+                            onMemberSelected: onRoleSelected,
+                          ),
+                        ),
+                      );
                     }
                   },
                 ),

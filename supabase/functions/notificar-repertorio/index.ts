@@ -1,25 +1,78 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { google } from 'npm:googleapis'
 
-// 1. Criar credenciais de Service Account a partir da string JSON guardada nas secrets do Supabase.
-//    No Supabase CLI: supabase secrets set FCM_SERVICE_ACCOUNT='{"type": "service_account", ...}'
-// 2. Colocar o Project ID do Firebase. No Supabase CLI: supabase secrets set FCM_PROJECT_ID='meu-projeto'
-// 3. Fazer o deploy: supabase functions deploy notificar-repertorio --no-verify-jwt
+function base64UrlEncode(data: Uint8Array | string): string {
+  const str = typeof data === 'string'
+    ? btoa(data)
+    : btoa(String.fromCharCode(...data))
+  return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
 
-const getAccessToken = async (serviceAccountJson: any) => {
-  const jwtClient = new google.auth.JWT(
-    serviceAccountJson.client_email,
-    null,
-    serviceAccountJson.private_key,
-    ['https://www.googleapis.com/auth/firebase.messaging']
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '')
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+async function getAccessToken(serviceAccount: { client_email: string; private_key: string }): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload = {
+    iss: serviceAccount.client_email,
+    sub: serviceAccount.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+  }
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header))
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload))
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`
+
+  const keyData = pemToArrayBuffer(serviceAccount.private_key)
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyData,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
   )
-  const tokens = await jwtClient.authorize()
-  return tokens.access_token
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  )
+
+  const jwt = `${unsignedToken}.${base64UrlEncode(new Uint8Array(signature))}`
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Falha ao obter access_token do Google OAuth2: ${errText}`)
+  }
+
+  const data = await res.json()
+  return data.access_token
 }
 
 serve(async (req: Request) => {
-  // CORS (permitir requisições do App/Web)
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -27,32 +80,13 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { dataCulto, horaCulto, qtdMusicas } = await req.json()
+    const reqBody = await req.json()
+    const { dataCulto, horaCulto, qtdMusicas, membroId, titulo, corpo } = reqBody
 
-    if (!dataCulto || !horaCulto) {
-      throw new Error('Parâmetros dataCulto ou horaCulto ausentes')
-    }
-
-    // Instanciar o cliente Supabase usando a chave service_role (ignorando RLS)
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-
-    // Pegar todos os tokens registrados na tabela membro_tokens
-    const { data: tokensRow, error: tokenError } = await supabaseClient
-      .from('membro_tokens')
-      .select('token')
-
-    if (tokenError) throw tokenError
-    if (!tokensRow || tokensRow.length === 0) {
-      return new Response(JSON.stringify({ message: 'Nenhum token encontrado.' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
-    }
-
-    const tokens = [...new Set(tokensRow.map((t: any) => t.token))]
 
     // Preparar credenciais FCM (HTTP v1)
     const serviceAccountStr = Deno.env.get('FCM_SERVICE_ACCOUNT')
@@ -62,64 +96,219 @@ serve(async (req: Request) => {
       throw new Error('FCM_SERVICE_ACCOUNT ou FCM_PROJECT_ID não configurados nas secrets')
     }
 
-    const serviceAccount = JSON.parse(serviceAccountStr)
+    const cleanJsonStr = serviceAccountStr.replace(/^'|'$/g, '')
+    const serviceAccount = JSON.parse(cleanJsonStr)
     const accessToken = await getAccessToken(serviceAccount)
 
-    // Formatar os dados para exibição na push
-    const partesData = dataCulto.split('-') // Assumindo YYYY-MM-DD
-    const dataFormatada = partesData.length === 3 
-      ? `${partesData[2]}/${partesData[1]}/${partesData[0]}` 
-      : dataCulto
+    // MODO 1: Envio individual para um membro específico (ex: teste ou aviso individual)
+    if (membroId) {
+      const { data: tokensRow, error: tokenErr } = await supabaseClient
+        .from('membro_tokens')
+        .select('token')
+        .eq('membro_id', membroId)
 
-    const title = '🎵 Novo Repertório Disponível!'
-    const body = `O repertório para o culto do dia ${dataFormatada} às ${horaCulto} foi adicionado. Contém ${qtdMusicas} música(s).`
+      if (tokenErr) throw tokenErr
 
-    // Enviar notificações via FCM HTTP v1
-    let successCount = 0
-    let failureCount = 0
+      const tokens = tokensRow
+        ? [...new Set(tokensRow.map((t: any) => t.token).filter(Boolean))]
+        : []
 
-    // FCM HTTP v1 só suporta envio individual ou de tópicos.
-    // Como temos uma lista de tokens, vamos disparar em paralelo.
-    const sendPromises = tokens.map(async (token) => {
-      const fcmPayload = {
-        message: {
-          token: token,
-          notification: {
-            title: title,
-            body: body,
-          },
-          data: {
-            tipo: 'novo_repertorio',
-            data_culto: dataCulto,
-          },
-          android: {
-            priority: 'high',
+      if (tokens.length === 0) {
+        return new Response(
+          JSON.stringify({
+            message: 'Nenhum token registrado para este membro ainda.',
+            tokensEncontrados: 0,
+            sucesso: 0,
+            falha: 0,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+
+      let successCount = 0
+      let failureCount = 0
+
+      for (const token of tokens) {
+        const fcmPayload = {
+          message: {
+            token: token,
             notification: {
-              sound: 'default',
-              channel_id: 'alertas_igreja_v4'
-            }
+              title: titulo ?? '🔔 Aviso da Escala',
+              body: corpo ?? 'Você recebeu uma nova notificação no app Escala!',
+            },
+            data: {
+              tipo: 'aviso_pessoal',
+              membro_id: String(membroId),
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                sound: 'toque_escala',
+                channel_id: 'alertas_igreja_v4',
+              },
+            },
+          },
+        }
+
+        const res = await fetch(
+          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(fcmPayload),
           }
+        )
+
+        if (res.ok) {
+          successCount++
+        } else {
+          failureCount++
+          console.error(`Erro ao enviar para token de ${membroId}:`, await res.text())
         }
       }
 
-      const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+      return new Response(
+        JSON.stringify({
+          message: 'Notificação individual processada',
+          tokensEncontrados: tokens.length,
+          sucesso: successCount,
+          falha: failureCount,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
+    // MODO 2: Envio de Nova Playlist para TODOS
+    if (!dataCulto || !horaCulto) {
+      throw new Error('Parâmetros dataCulto ou horaCulto ausentes')
+    }
+
+    const partesData = dataCulto.split('-') // YYYY-MM-DD
+    const dataFormatada = partesData.length === 3
+      ? `${partesData[2]}/${partesData[1]}/${partesData[0]}`
+      : dataCulto
+
+    const horaCurta = horaCulto.length >= 5 ? horaCulto.substring(0, 5) : horaCulto
+
+    let diaSemanaNome = ''
+    try {
+      const dataObj = new Date(`${dataCulto}T12:00:00Z`)
+      const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+      diaSemanaNome = `${diasSemana[dataObj.getUTCDay()]}, `
+    } catch (_) {}
+
+    const title = '🎵 Playlist do Culto'
+    const body = `${diaSemanaNome}${dataFormatada} às ${horaCurta} • ${qtdMusicas ?? 0} música(s)`
+
+    let successCount = 0
+    let failureCount = 0
+
+    // 1. Envia para o tópico 'todos' (recebido por todos os aparelhos Android com o app instalado)
+    const topicPayload = {
+      message: {
+        topic: 'todos',
+        notification: {
+          title: title,
+          body: body,
+        },
+        data: {
+          tipo: 'novo_repertorio',
+          data_culto: String(dataCulto),
+          hora_culto: String(horaCurta),
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            sound: 'toque_escala',
+            channel_id: 'alertas_igreja_v4',
+          },
+        },
+      },
+    }
+
+    const topicRes = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(fcmPayload)
+        body: JSON.stringify(topicPayload),
+      }
+    )
+
+    if (topicRes.ok) {
+      successCount++
+    } else {
+      failureCount++
+      console.error('Erro ao enviar para tópico todos:', await topicRes.text())
+    }
+
+    // 2. Envia também para tokens Web registrados em membro_tokens
+    const { data: webTokensRow } = await supabaseClient
+      .from('membro_tokens')
+      .select('token')
+      .eq('plataforma', 'web')
+
+    const webTokens = webTokensRow
+      ? [...new Set(webTokensRow.map((t: any) => t.token).filter(Boolean))]
+      : []
+
+    const tokensInvalidos: string[] = []
+
+    if (webTokens.length > 0) {
+      const sendPromises = webTokens.map(async (token) => {
+        const fcmPayload = {
+          message: {
+            token: token,
+            notification: {
+              title: title,
+              body: body,
+            },
+            data: {
+              tipo: 'novo_repertorio',
+              data_culto: String(dataCulto),
+              hora_culto: String(horaCurta),
+            },
+          },
+        }
+
+        const res = await fetch(
+          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(fcmPayload),
+          }
+        )
+
+        if (res.ok) {
+          successCount++
+        } else {
+          failureCount++
+          const errBody = await res.text()
+          if (errBody.includes('UNREGISTERED') || errBody.includes('INVALID_ARGUMENT')) {
+            tokensInvalidos.push(token)
+          }
+        }
       })
 
-      if (res.ok) {
-        successCount++
-      } else {
-        failureCount++
-        console.error(`Erro ao enviar para o token ${token}:`, await res.text())
-      }
-    })
+      await Promise.all(sendPromises)
 
-    await Promise.all(sendPromises)
+      if (tokensInvalidos.length > 0) {
+        await supabaseClient
+          .from('membro_tokens')
+          .delete()
+          .in('token', tokensInvalidos)
+      }
+    }
 
     return new Response(
       JSON.stringify({

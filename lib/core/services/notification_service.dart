@@ -4,14 +4,53 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import '../models/agenda_item.dart';
 import '../models/escala_item.dart';
+
 class NotificationService {
   static final _notifications = FlutterLocalNotificationsPlugin();
+  static bool _agendando = false;
+
+  static const _channelId = 'alertas_igreja_v4';
+  static const _channelName = 'Alertas da Igreja';
+  static const _channelDesc =
+      'Notificações de escalas pessoais, jejum e novas playlists de cultos';
+
+  static const _androidDetails = AndroidNotificationDetails(
+    _channelId,
+    _channelName,
+    channelDescription: _channelDesc,
+    importance: Importance.max,
+    priority: Priority.high,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('toque_escala'),
+  );
+
+  static String _nomeDiaSemana(DateTime data) {
+    const dias = [
+      '',
+      'Segunda',
+      'Terça',
+      'Quarta',
+      'Quinta',
+      'Sexta',
+      'Sábado',
+      'Domingo',
+    ];
+    return dias[data.weekday];
+  }
 
   static Future<void> init() async {
+    if (kIsWeb) return;
+
     tz_data.initializeTimeZones();
+    try {
+      tz.setLocalLocation(tz.getLocation('America/Sao_Paulo'));
+    } catch (e) {
+      debugPrint('Erro ao definir timezone America/Sao_Paulo: $e');
+    }
+
     const android = AndroidInitializationSettings('@mipmap/launcher_icon');
     const initSettings = InitializationSettings(android: android);
-    
+
     await _notifications.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (details) {
@@ -19,131 +58,245 @@ class NotificationService {
       },
     );
 
-    // Solicitar permissão de notificação (Android 13+)
-    await _notifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-  }
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
-  static Future<void> agendarNotificacoesAgenda(List<AgendaItem> itens) async {
-    debugPrint('🔔 Notificações: Agendando agenda (${itens.length} itens)...');
-    
-    // Para simplificar e garantir que não haja duplicidade, limpamos tudo antes de reagendar.
-    // Em um cenário real, poderíamos ser mais seletivos.
-    await _notifications.cancelAll(); 
-
-    for (var item in itens) {
-      // Agendamos as próximas 3 ocorrências de cada item recorrente
-      final proximas = item.calcularProximasDatas(3);
-      
-      for (int i = 0; i < proximas.length; i++) {
-        final data = proximas[i];
-        // Geramos um ID único baseado no hash do ID da String e na ocorrência
-        final baseId = item.id.hashCode.abs() + (i * 1000);
-        
-        final hParts = item.horario.split(':');
-        final dataHoraComHorario = DateTime(
-          data.year,
-          data.month,
-          data.day,
-          int.parse(hParts[0]),
-          int.parse(hParts[1]),
-        );
-
-        // Alerta às 08:00 do dia
-        await agendarAlertaMatinal(
-          id: baseId,
-          titulo: 'Hoje tem: ${item.titulo}',
-          corpo: 'Às ${item.horario} na igreja.',
-          dataHora: dataHoraComHorario,
-        );
-
-        // Alerta 1 hora antes
-        await agendarAlertaUmaHoraAntes(
-          id: baseId + 5000,
-          titulo: 'Lembrete: ${item.titulo}',
-          corpo: 'O evento "${item.titulo}" começa em 1 hora.',
-          dataHora: dataHoraComHorario,
-        );
+    if (androidPlugin != null) {
+      await androidPlugin.requestNotificationsPermission();
+      try {
+        await androidPlugin.requestExactAlarmsPermission();
+      } catch (e) {
+        debugPrint('Aviso ao solicitar permissão de alarme exato: $e');
       }
+
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _channelId,
+          _channelName,
+          description: _channelDesc,
+          importance: Importance.max,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound('toque_escala'),
+        ),
+      );
     }
   }
 
-  static Future<void> agendarNotificacoesEscala(List<EscalaItem> escalas) async {
-    debugPrint('🔔 Notificações: Agendando escalas (${escalas.length} itens)...');
-    
-    for (var item in escalas) {
-      final parts = item.data.split('-');
-      if (parts.length != 3) continue;
+  /// Mantido apenas por compatibilidade caso algum ponto antigo referencie,
+  /// mas desativado por padrão para evitar notificações gerais desnecessárias.
+  static Future<void> agendarNotificacoesAgenda(List<AgendaItem> itens) async {
+    // Desativado conforme preferência: apenas Playlist (para todos)
+    // e Escala / Jejum (individualmente para o membro escalado).
+  }
 
-      final hParts = item.horario.split(':');
-      if (hParts.length != 2) continue;
+  /// Agenda todas as notificações pessoais (Escala de Culto e Jejum)
+  /// exclusivamente para o membro identificado neste aparelho.
+  static Future<int> agendarNotificacoesEscala(List<EscalaItem> escalas) async {
+    if (kIsWeb) return 0;
+    if (_agendando) return 0;
+    _agendando = true;
 
-      final dataHora = DateTime(
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-        int.parse(parts[2]),
-        int.parse(hParts[0]),
-        int.parse(hParts[1]),
-      );
+    int totalAgendadas = 0;
 
-      // Não agendar se já passou
-      if (dataHora.isBefore(DateTime.now())) continue;
+    try {
+      debugPrint(
+          '🔔 Notificações: Reagendando escalas pessoais (${escalas.length} itens)...');
 
-      final baseId = item.id.hashCode.abs() + 20000; // Offset para não conflitar com agenda
+      // Limpa agendamentos anteriores para evitar duplicidade ou dados de outro perfil
+      await _notifications.cancelAll();
 
-      if (item.ministerio == 'Jejum') {
-        // Alerta no dia anterior, por exemplo às 20h
-        final diaAnterior = dataHora.subtract(const Duration(days: 1));
-        final alertaJejum = DateTime(
-          diaAnterior.year,
-          diaAnterior.month,
-          diaAnterior.day,
+      final validas = escalas.where((item) {
+        final nome = item.nome.trim();
+        return nome.isNotEmpty &&
+            nome != '[FALTA]' &&
+            item.statusConvite != 'FALTA';
+      }).toList();
+
+      // 1. Separar escalas de Jejum (agrupadas por data para não duplicar no mesmo dia)
+      final datasJejum = <String>{};
+      for (final item in validas.where((e) => e.ministerio == 'Jejum')) {
+        datasJejum.add(item.data);
+      }
+
+      for (final dataStr in datasJejum) {
+        final parts = dataStr.split('-');
+        if (parts.length != 3) continue;
+        final ano = int.tryParse(parts[0]);
+        final mes = int.tryParse(parts[1]);
+        final dia = int.tryParse(parts[2]);
+        if (ano == null || mes == null || dia == null) continue;
+
+        final diaFmt =
+            '${dia.toString().padLeft(2, '0')}/${mes.toString().padLeft(2, '0')}';
+        final baseId = ('jejum_$dataStr').hashCode.abs() % 100000000;
+
+        final dataJejum = DateTime(ano, mes, dia);
+        final diaSemanaJejum = _nomeDiaSemana(dataJejum);
+        final vespera = dataJejum.subtract(const Duration(days: 1));
+        final alertaVespera = DateTime(
+          vespera.year,
+          vespera.month,
+          vespera.day,
           20,
           0,
         );
 
-        if (alertaJejum.isAfter(DateTime.now())) {
-          await agendarAlertaCustomizado(
-            id: baseId + 10000,
-            titulo: 'Dia de Jejum Amanhã!',
-            corpo: 'Se prepare pois amanhã é o seu dia de Jejuar pela igreja.',
-            dataHora: alertaJejum,
-          );
-        }
-        continue;
+        final agendouVespera = await agendarAlertaCustomizado(
+          id: baseId + 1,
+          titulo: '🙏 Jejum Amanhã',
+          corpo: '$diaSemanaJejum ($diaFmt) é seu dia de jejum.',
+          dataHora: alertaVespera,
+        );
+        if (agendouVespera) totalAgendadas++;
+
+        // Aviso 2: No próprio dia do Jejum às 06:00 da manhã
+        final alertaManhaJejum = DateTime(ano, mes, dia, 6, 0);
+        final agendouManha = await agendarAlertaCustomizado(
+          id: baseId + 2,
+          titulo: '🙏 Jejum Hoje',
+          corpo: '$diaSemanaJejum ($diaFmt) é seu propósito de jejum.',
+          dataHora: alertaManhaJejum,
+        );
+        if (agendouManha) totalAgendadas++;
       }
 
-      await agendarAlertaMatinal(
-        id: baseId,
-        titulo: 'Você está escalado hoje!',
-        corpo: '${item.ministerio} - ${item.funcao} às ${item.horario}.',
-        dataHora: dataHora,
-      );
+      // 2. Separar escalas de Cultos (agrupadas por data + horário para consolidar acúmulo de funções)
+      final Map<String, List<EscalaItem>> cultosAgrupados = {};
+      for (final item in validas.where((e) => e.ministerio != 'Jejum')) {
+        final horaCurta = item.horario.length >= 5
+            ? item.horario.substring(0, 5)
+            : item.horario;
+        final chave = '${item.data}_$horaCurta';
+        cultosAgrupados.putIfAbsent(chave, () => []).add(item);
+      }
 
-      await agendarAlertaUmaHoraAntes(
-        id: baseId + 5000,
-        titulo: 'Sua escala está próxima',
-        corpo: 'Prepare-se! Sua escala em ${item.ministerio} começa em 1 hora.',
-        dataHora: dataHora,
-      );
+      for (final entry in cultosAgrupados.entries) {
+        final itensDoCulto = entry.value;
+        final primeiro = itensDoCulto.first;
+
+        final parts = primeiro.data.split('-');
+        if (parts.length != 3) continue;
+        final ano = int.tryParse(parts[0]);
+        final mes = int.tryParse(parts[1]);
+        final dia = int.tryParse(parts[2]);
+        if (ano == null || mes == null || dia == null) continue;
+
+        final hParts = primeiro.horario.split(':');
+        if (hParts.length < 2) continue;
+        final hora = int.tryParse(hParts[0]);
+        final minuto = int.tryParse(hParts[1]);
+        if (hora == null || minuto == null) continue;
+
+        final horaFmt =
+            '${hora.toString().padLeft(2, '0')}:${minuto.toString().padLeft(2, '0')}';
+
+        final resumoFuncoes = itensDoCulto
+            .map((e) => '${e.ministerio} (${e.funcao})')
+            .toSet()
+            .join(', ');
+
+        final dataHoraCulto = DateTime(ano, mes, dia, hora, minuto);
+        final diaSemanaCulto = _nomeDiaSemana(dataHoraCulto);
+        final diaFmt =
+            '${dia.toString().padLeft(2, '0')}/${mes.toString().padLeft(2, '0')}';
+        final isCultoMatutino = hora < 12;
+        final isMinistro = itensDoCulto.any((e) =>
+            e.funcao.toLowerCase().contains('ministro') ||
+            e.funcao.toLowerCase().contains('dirigente'));
+
+        final baseId = ('culto_${entry.key}').hashCode.abs() % 100000000;
+
+        // Aviso 1: Especial para Ministros (2 dias antes às 20:00 para montar a playlist)
+        if (isMinistro) {
+          final doisDiasAntes = dataHoraCulto.subtract(const Duration(days: 2));
+          final alertaMinistro = DateTime(
+            doisDiasAntes.year,
+            doisDiasAntes.month,
+            doisDiasAntes.day,
+            20,
+            0,
+          );
+
+          final agendouMinistro = await agendarAlertaCustomizado(
+            id: baseId + 3,
+            titulo: '🎵 Playlist do Culto',
+            corpo:
+                'Você ministra $diaSemanaCulto ($diaFmt) às $horaFmt. Defina as músicas no app.',
+            dataHora: alertaMinistro,
+          );
+          if (agendouMinistro) totalAgendadas++;
+        }
+
+        // Aviso 2: Notificação prévia do Culto
+        // Se culto matutino (< 12:00): avisa um dia antes na parte da noite (20:00)
+        // Se culto à tarde/noite (>= 12:00): avisa às 08:00 da manhã do próprio dia
+        if (isCultoMatutino) {
+          final vespera = dataHoraCulto.subtract(const Duration(days: 1));
+          final alertaVespera = DateTime(
+            vespera.year,
+            vespera.month,
+            vespera.day,
+            20,
+            0,
+          );
+
+          final agendouVespera = await agendarAlertaCustomizado(
+            id: baseId + 1,
+            titulo: '📅 Escala Amanhã',
+            corpo: '$diaSemanaCulto ($diaFmt) às $horaFmt • $resumoFuncoes',
+            dataHora: alertaVespera,
+          );
+          if (agendouVespera) totalAgendadas++;
+        } else {
+          final alertaMatinal = DateTime(ano, mes, dia, 8, 0);
+          final agendouMatinal = await agendarAlertaCustomizado(
+            id: baseId + 1,
+            titulo: '📅 Escala Hoje',
+            corpo: '$diaSemanaCulto às $horaFmt • $resumoFuncoes',
+            dataHora: alertaMatinal,
+          );
+          if (agendouMatinal) totalAgendadas++;
+        }
+
+        // Aviso 3: 1 hora antes do início do culto
+        final alerta1hAntes = dataHoraCulto.subtract(const Duration(hours: 1));
+        final agendou1h = await agendarAlertaCustomizado(
+          id: baseId + 2,
+          titulo: '⏰ Escala em 1 hora',
+          corpo: '$resumoFuncoes às $horaFmt',
+          dataHora: alerta1hAntes,
+        );
+        if (agendou1h) totalAgendadas++;
+      }
+
+      debugPrint('🔔 Notificações: $totalAgendadas alertas pessoais agendados.');
+      return totalAgendadas;
+    } finally {
+      _agendando = false;
     }
   }
 
-
-
-  static Future<void> agendarAlertaMatinal({
+  static Future<bool> agendarAlertaCustomizado({
     required int id,
     required String titulo,
     required String corpo,
     required DateTime dataHora,
   }) async {
-    final agendado = tz.TZDateTime.from(
-      DateTime(dataHora.year, dataHora.month, dataHora.day, 8, 0),
+    if (kIsWeb) return false;
+
+    final agendado = tz.TZDateTime(
       tz.local,
+      dataHora.year,
+      dataHora.month,
+      dataHora.day,
+      dataHora.hour,
+      dataHora.minute,
     );
 
-    if (agendado.isBefore(tz.TZDateTime.now(tz.local))) return;
+    if (!agendado.isAfter(tz.TZDateTime.now(tz.local))) return false;
+
+    const details = NotificationDetails(android: _androidDetails);
 
     try {
       await _notifications.zonedSchedule(
@@ -151,90 +304,43 @@ class NotificationService {
         title: titulo,
         body: corpo,
         scheduledDate: agendado,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'alertas_igreja_v4', // Novo canal para fixar o toque_escala
-            'Alertas da Igreja',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('toque_escala'),
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
+      return true;
     } catch (e) {
-      debugPrint('Erro ao agendar alerta matinal: $e');
+      debugPrint(
+          'Aviso: fallback para inexactAllowWhileIdle no alarme $id ($e)');
+      try {
+        await _notifications.zonedSchedule(
+          id: id,
+          title: titulo,
+          body: corpo,
+          scheduledDate: agendado,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        );
+        return true;
+      } catch (e2) {
+        debugPrint('Erro ao agendar alerta customizado: $e2');
+        return false;
+      }
     }
   }
 
-  static Future<void> agendarAlertaCustomizado({
-    required int id,
-    required String titulo,
-    required String corpo,
-    required DateTime dataHora,
-  }) async {
-    final agendado = tz.TZDateTime.from(dataHora, tz.local);
-
-    if (agendado.isBefore(tz.TZDateTime.now(tz.local))) return;
-
+  static Future<List<PendingNotificationRequest>>
+      listarNotificacoesPendentes() async {
+    if (kIsWeb) return [];
     try {
-      await _notifications.zonedSchedule(
-        id: id,
-        title: titulo,
-        body: corpo,
-        scheduledDate: agendado,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'alertas_igreja_v4',
-            'Alertas da Igreja',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('toque_escala'),
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
+      return await _notifications.pendingNotificationRequests();
     } catch (e) {
-      debugPrint('Erro ao agendar alerta customizado: $e');
-    }
-  }
-
-  static Future<void> agendarAlertaUmaHoraAntes({
-    required int id,
-    required String titulo,
-    required String corpo,
-    required DateTime dataHora,
-  }) async {
-    final agendado = tz.TZDateTime.from(
-      dataHora.subtract(const Duration(hours: 1)),
-      tz.local,
-    );
-
-    if (agendado.isBefore(tz.TZDateTime.now(tz.local))) return;
-
-    try {
-      await _notifications.zonedSchedule(
-        id: id,
-        title: titulo,
-        body: corpo,
-        scheduledDate: agendado,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'alertas_igreja_v4',
-            'Lembretes de Eventos',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('toque_escala'),
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-    } catch (e) {
-      debugPrint('Erro ao agendar lembrete imediato: $e');
+      debugPrint('Erro ao listar notificações pendentes: $e');
+      return [];
     }
   }
 
   static Future<void> cancelarTodas() async {
+    if (kIsWeb) return;
     await _notifications.cancelAll();
   }
 
@@ -243,20 +349,13 @@ class NotificationService {
     required String titulo,
     required String corpo,
   }) async {
+    if (kIsWeb) return;
     try {
       await _notifications.show(
         id: id,
         title: titulo,
         body: corpo,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'alertas_igreja_v4',
-            'Alertas da Igreja',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('toque_escala'),
-          ),
-        ),
+        notificationDetails: const NotificationDetails(android: _androidDetails),
       );
     } catch (e) {
       debugPrint('Erro ao mostrar notificação imediata: $e');

@@ -13,6 +13,7 @@ import 'features/membros/membros_screen.dart';
 import 'features/configuracoes/config_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/splash/role_selection_screen.dart';
+import 'features/splash/quem_sou_eu_screen.dart';
 import 'core/services/notification_service.dart';
 import 'features/home/widgets/home_calendar_web.dart';
 import 'core/services/push_notification_service.dart';
@@ -39,29 +40,40 @@ class _IgrejaAdminAppState extends ConsumerState<IgrejaAdminApp> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final role = ref.watch(userRoleProvider);
     final roleNotifier = ref.watch(userRoleProvider.notifier);
     final hasRole = roleNotifier.hasSelectedRole;
-
+    final hasMembro = roleNotifier.selectedMembroNome != null &&
+        roleNotifier.selectedMembroNome!.isNotEmpty;
 
     Widget homeWidget;
-    if (!_initialized) {
-      if (!hasRole && !_showSplash) {
-        homeWidget = RoleSelectionScreen(
-          onRoleSelected: () {
-            setState(() {
-              _showSplash = true;
-            });
-          },
-        );
-      } else {
-        homeWidget = SplashScreen(
-          onInitializationComplete: () {
-            setState(() {
-              _initialized = true;
-            });
-          },
-        );
-      }
+    if (!hasRole) {
+      homeWidget = RoleSelectionScreen(
+        onRoleSelected: () {
+          setState(() {
+            _showSplash = true;
+          });
+        },
+      );
+    } else if (!hasMembro) {
+      homeWidget = QuemSouEuScreen(
+        role: role,
+        isReconfiguration: true,
+        onMemberSelected: () {
+          setState(() {
+            _showSplash = true;
+          });
+        },
+      );
+    } else if (!_initialized || _showSplash) {
+      homeWidget = SplashScreen(
+        onInitializationComplete: () {
+          setState(() {
+            _initialized = true;
+            _showSplash = false;
+          });
+        },
+      );
     } else {
       homeWidget = const _MainShell();
     }
@@ -76,7 +88,6 @@ class _IgrejaAdminAppState extends ConsumerState<IgrejaAdminApp> {
     );
   }
 }
-
 
 class _MainShell extends ConsumerStatefulWidget {
   const _MainShell();
@@ -101,16 +112,16 @@ class _MainShellState extends ConsumerState<_MainShell> {
       // Checagem de atualização OTA
       UpdateService.checkForUpdateAndPrompt(context);
 
-      // Primeira carga do widget Android
+      // Primeira carga do widget Android e agendamento de notificações pessoais
       _atualizarWidget();
       _agendarNotificacoes();
     });
   }
 
   void _atualizarWidget() {
-    // Sempre usa a escala geral para o widget
     ref.read(proximaEscalaProvider.future).then((itens) {
-      debugPrint('🟦 [MainShell] proximaEscalaProvider retornou ${itens.length} itens para o widget.');
+      debugPrint(
+          '🟦 [MainShell] proximaEscalaProvider retornou ${itens.length} itens para o widget.');
       WidgetService.updateEscalasWidget(itens);
     }).catchError((e) {
       debugPrint('❌ [MainShell] Erro ao carregar proximas escalas: $e');
@@ -120,20 +131,26 @@ class _MainShellState extends ConsumerState<_MainShell> {
   void _agendarNotificacoes() {
     final roleNotifier = ref.read(userRoleProvider.notifier);
     final membroNome = roleNotifier.selectedMembroNome;
-    if (membroNome != null) {
-      ref.read(compromissosDoMembroProvider(membroNome).future).then((itens) {
+    if (membroNome != null && membroNome.isNotEmpty) {
+      ref.read(escalaRepoProvider).getByMembro(membroNome).then((itens) {
         NotificationService.agendarNotificacoesEscala(itens);
+      }).catchError((e) {
+        debugPrint('❌ [MainShell] Erro ao agendar notificações de escala: $e');
       });
     }
-    ref.read(agendaProvider.future).then((itens) {
-      NotificationService.agendarNotificacoesAgenda(itens);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(userRoleProvider);
     final isMembro = role == UserRole.membro;
+
+    // Reagenda automaticamente as notificações pessoais quando a escala do mês muda em tempo real
+    ref.listen<AsyncValue<dynamic>>(escalaDoMesProvider, (prev, next) {
+      if (next.hasValue) {
+        _agendarNotificacoes();
+      }
+    });
 
     final screens = [
       const HomeScreen(),
@@ -220,12 +237,23 @@ class _MainShellState extends ConsumerState<_MainShell> {
                   destinations: railDestinations,
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   indicatorColor: AppColors.acento.withValues(alpha: 0.2),
-                  selectedLabelTextStyle: const TextStyle(color: AppColors.acento, fontWeight: FontWeight.bold),
-                  unselectedLabelTextStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                  selectedIconTheme: const IconThemeData(color: AppColors.acento),
-                  unselectedIconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                  selectedLabelTextStyle: const TextStyle(
+                      color: AppColors.acento, fontWeight: FontWeight.bold),
+                  unselectedLabelTextStyle: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7)),
+                  selectedIconTheme:
+                      const IconThemeData(color: AppColors.acento),
+                  unselectedIconTheme: IconThemeData(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7)),
                 ),
-                const VerticalDivider(thickness: 1, width: 1, color: AppColors.bgBorda),
+                const VerticalDivider(
+                    thickness: 1, width: 1, color: AppColors.bgBorda),
                 Container(
                   width: 350,
                   decoration: const BoxDecoration(
@@ -270,6 +298,3 @@ class _MainShellState extends ConsumerState<_MainShell> {
     );
   }
 }
-
-
-
