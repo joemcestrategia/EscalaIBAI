@@ -32,21 +32,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       duration: const Duration(milliseconds: 900),
     );
     _fades = List.generate(
-      5,
+      6,
       (i) => Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: Interval(i * 0.14, (i * 0.14 + 0.6).clamp(0.0, 1.0),
+        curve: Interval(i * 0.12, (i * 0.12 + 0.55).clamp(0.0, 1.0),
             curve: Curves.easeOut),
       )),
     );
     _slides = List.generate(
-      5,
+      6,
       (i) => Tween<Offset>(
         begin: const Offset(0, 0.12),
         end: Offset.zero,
       ).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: Interval(i * 0.14, (i * 0.14 + 0.6).clamp(0.0, 1.0),
+        curve: Interval(i * 0.12, (i * 0.12 + 0.55).clamp(0.0, 1.0),
             curve: Curves.easeOutCubic),
       )),
     );
@@ -161,6 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return versiculo.when(
       data: (v) => Container(
         width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: context.bgSubtle,
@@ -197,8 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
       ),
-      loading: () => const SizedBox(),
-      error: (_, __) => const SizedBox(),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -251,22 +252,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const SizedBox(height: 20),
           if (nomeMembro.isNotEmpty)
             _animated(0, _HeroMinhaProximaEscala(nomeMembro: nomeMembro)),
+          _animated(1, _buildVersiculoBanner(context, versiculo)),
           if (prefs.mostrarEventos) ...[
-            _animated(1, _ProximoEventoCard(atividades: proximasAtividades)),
+            _animated(2, _ProximoEventoCard(atividades: proximasAtividades)),
             const SizedBox(height: 16),
           ],
           if (prefs.mostrarEscalas) ...[
-            _animated(2, _ProximaEscalaCard(proxima: proxima)),
+            _animated(3, _ProximaEscalaCard(proxima: proxima)),
             const SizedBox(height: 16),
           ],
-          _buildVersiculoBanner(context, versiculo),
-          const SizedBox(height: 16),
           if (prefs.mostrarJejum) ...[
-            _animated(3, const _JejumDoDiaCard()),
+            _animated(4, const _JejumDoDiaCard()),
             const SizedBox(height: 16),
           ],
           if (prefs.mostrarRelatorio) ...[
-            _animated(4, const _RelatorioEscalasCard()),
+            _animated(5, const _RelatorioEscalasCard()),
             const SizedBox(height: 16),
           ],
         ],
@@ -301,15 +301,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         0,
                         _HeroMinhaProximaEscala(nomeMembro: nomeMembro),
                       ),
+                    _animated(1, _buildVersiculoBanner(context, versiculo)),
                     if (prefs.mostrarEventos) ...[
                       _animated(
-                        1,
+                        2,
                         _ProximoEventoCard(atividades: proximasAtividades),
                       ),
                       const SizedBox(height: 16),
                     ],
                     if (prefs.mostrarJejum) ...[
-                      _animated(3, const _JejumDoDiaCard()),
+                      _animated(4, const _JejumDoDiaCard()),
                       const SizedBox(height: 16),
                     ],
                   ],
@@ -320,8 +321,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildVersiculoBanner(context, versiculo),
-                    const SizedBox(height: 20),
                     if (prefs.mostrarEscalas) ...[
                       Text(
                         'Próximas Escalas',
@@ -330,11 +329,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                       ),
                       const SizedBox(height: 14),
-                      _animated(2, _ProximaEscalaCard(proxima: proxima)),
+                      _animated(3, _ProximaEscalaCard(proxima: proxima)),
                       const SizedBox(height: 20),
                     ],
                     if (prefs.mostrarRelatorio) ...[
-                      _animated(4, const _RelatorioEscalasCard()),
+                      _animated(5, const _RelatorioEscalasCard()),
                       const SizedBox(height: 20),
                     ],
                   ],
