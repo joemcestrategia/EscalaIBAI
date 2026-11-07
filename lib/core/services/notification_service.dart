@@ -261,7 +261,7 @@ class NotificationService {
 
           if (temPlaylist) {
             // Se já possui músicas na playlist, cancela qualquer cobrança de pendência
-            await _notifications.cancel(baseId + 4);
+            await _notifications.cancel(id: baseId + 4);
           } else {
             // Se NÃO montou a playlist ainda:
             // Culto matutino (< 12:00): avisa na véspera às 20:00
@@ -432,7 +432,7 @@ class NotificationService {
     try {
       final horaCurta = hora.length >= 5 ? hora.substring(0, 5) : hora;
       final baseId = ('culto_${data}_$horaCurta').hashCode.abs() % 100000000;
-      await _notifications.cancel(baseId + 4);
+      await _notifications.cancel(id: baseId + 4);
       debugPrint(
           '🔔 [Notificações] Cobrança de playlist cancelada para $data $horaCurta (ID: ${baseId + 4})');
     } catch (e) {
