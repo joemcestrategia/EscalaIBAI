@@ -196,242 +196,246 @@ class _CifraBottomSheetState extends State<CifraBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E2E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: context.bgCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
       ),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // Título da música
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                widget.titulo,
-                style: AppTextStyles.subheading(color: Colors.white),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                widget.artista,
-                style: AppTextStyles.bodySmall(color: Colors.white54),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Botão Ouvir no YouTube ──────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _abrirYoutube,
-                  icon: const Icon(Icons.play_circle_outline,
-                      color: Color(0xFFFF0000), size: 20),
-                  label: const Text(
-                    'Ouvir no YouTube',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFFF0000)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: context.bgBorda,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-            ),
 
-            const Divider(
-                color: Colors.white12, height: 24, indent: 20, endIndent: 20),
-
-            // Seletor Letra / Cifra
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  _TipoChip(
-                    label: 'Letra',
-                    icon: Icons.music_note,
-                    selecionado: _tipo == 'letra',
-                    onTap: () => setState(() {
-                      _tipo = 'letra';
-                      _resolucao = null;
-                    }),
-                  ),
-                  const SizedBox(width: 8),
-                  _TipoChip(
-                    label: 'Cifra',
-                    icon: Icons.library_music,
-                    selecionado: _tipo == 'cifra',
-                    onTap: () => setState(() {
-                      _tipo = 'cifra';
-                      _resolucao = null;
-                    }),
-                  ),
-                  const Spacer(),
-                  // Botão "Corrigir nome"
-                  TextButton.icon(
-                    onPressed: () => setState(() => _editando = !_editando),
-                    icon: const Icon(Icons.edit, size: 14, color: Colors.white54),
-                    label: Text(
-                      'Corrigir nome',
-                      style: AppTextStyles.label(color: Colors.white54),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Campo de edição manual
-            if (_editando) ...[
-              const SizedBox(height: 12),
+              // Título da música
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _ctrlTitulo,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Nome da música',
-                        labelStyle: TextStyle(color: Colors.white54),
-                        enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24)),
-                        focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.acento)),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _ctrlArtista,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Artista',
-                        labelStyle: TextStyle(color: Colors.white54),
-                        enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24)),
-                        focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.acento)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => _resolver(
-                              tituloManual: _ctrlTitulo.text.trim(),
-                              artistaManual: _ctrlArtista.text.trim(),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.acento,
-                              side: const BorderSide(color: AppColors.acento),
-                            ),
-                            child: const Text('🔍 Buscar'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (widget.videoId != null)
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _confirmarNome(
-                                _ctrlTitulo.text.trim(),
-                                _ctrlArtista.text.trim(),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green.shade700,
-                              ),
-                              child: const Text('✅ Confirmar',
-                                  style: TextStyle(color: Colors.white)),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  widget.titulo,
+                  style: AppTextStyles.heading(color: context.textoPrimario),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ],
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  widget.artista,
+                  style: AppTextStyles.body(color: context.textoSecund),
+                ),
+              ),
+              const SizedBox(height: 16),
 
-            const SizedBox(height: 16),
-
-            // Botão principal de busca
-            if (_resolucao == null && !_loading && !_editando)
+              // ── Botão Ouvir no YouTube ──────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _resolver,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.acento,
+                  child: OutlinedButton.icon(
+                    onPressed: _abrirYoutube,
+                    icon: const Icon(
+                      Icons.play_circle_fill_rounded,
+                      color: AppColors.perigo,
+                      size: 22,
+                    ),
+                    label: Text(
+                      'Ouvir no YouTube',
+                      style: AppTextStyles.button(color: context.textoPrimario),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: AppColors.perigo.withValues(alpha: 0.45),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(
-                      _tipo == 'letra' ? 'Buscar Letra' : 'Buscar Cifra',
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
               ),
 
-            // Loading
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(
-                    child: CircularProgressIndicator(color: AppColors.acento)),
+              Divider(
+                color: context.bgBorda,
+                height: 28,
+                indent: 20,
+                endIndent: 20,
               ),
 
-            // Resultado do pipeline
-            if (_resolucao != null && !_loading)
+              // Seletor Letra / Cifra
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _ResultadoWidget(
-                  resolucao: _resolucao!,
-                  tipo: _tipo,
-                  onAbrir: _abrirUrl,
-                  onSugestaoTap: (s) async {
-                    _ctrlTitulo.text = s.titulo;
-                    _ctrlArtista.text = s.artista;
-                    final url = s.montarUrlExata(_tipo) ??
-                        await LetrasUtils.montarUrlInteligente(
-                          _tipo,
-                          s.titulo,
-                          s.artista,
-                        );
-                    await _abrirUrl(url);
-                  },
+                child: Row(
+                  children: [
+                    _TipoChip(
+                      label: 'Letra',
+                      icon: Icons.music_note_rounded,
+                      selecionado: _tipo == 'letra',
+                      onTap: () => setState(() {
+                        _tipo = 'letra';
+                        _resolucao = null;
+                      }),
+                    ),
+                    const SizedBox(width: 10),
+                    _TipoChip(
+                      label: 'Cifra',
+                      icon: Icons.library_music_rounded,
+                      selecionado: _tipo == 'cifra',
+                      onTap: () => setState(() {
+                        _tipo = 'cifra';
+                        _resolucao = null;
+                      }),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _editando = !_editando),
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: context.textoSecund,
+                      ),
+                      label: Text(
+                        'Corrigir nome',
+                        style: AppTextStyles.bodySmall(
+                          color: context.textoSecund,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-            const SizedBox(height: 8),
-          ],
+              // Campo de edição manual
+              if (_editando) ...[
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _ctrlTitulo,
+                        style: AppTextStyles.body(color: context.textoPrimario),
+                        decoration: const InputDecoration(
+                          labelText: 'Nome da música',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _ctrlArtista,
+                        style: AppTextStyles.body(color: context.textoPrimario),
+                        decoration: const InputDecoration(
+                          labelText: 'Artista',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _resolver(
+                                tituloManual: _ctrlTitulo.text.trim(),
+                                artistaManual: _ctrlArtista.text.trim(),
+                              ),
+                              child: const Text('Buscar'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          if (widget.videoId != null)
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => _confirmarNome(
+                                  _ctrlTitulo.text.trim(),
+                                  _ctrlArtista.text.trim(),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.sucesso,
+                                ),
+                                child: const Text('Confirmar'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 18),
+
+              // Botão principal de busca
+              if (_resolucao == null && !_loading && !_editando)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _resolver,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.acento,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: Text(
+                        _tipo == 'letra' ? 'Buscar Letra' : 'Buscar Cifra',
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Loading
+              if (_loading)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: context.corPrimaria,
+                    ),
+                  ),
+                ),
+
+              // Resultado do pipeline
+              if (_resolucao != null && !_loading)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _ResultadoWidget(
+                    resolucao: _resolucao!,
+                    tipo: _tipo,
+                    onAbrir: _abrirUrl,
+                    onSugestaoTap: (s) async {
+                      _ctrlTitulo.text = s.titulo;
+                      _ctrlArtista.text = s.artista;
+                      final url = s.montarUrlExata(_tipo) ??
+                          await LetrasUtils.montarUrlInteligente(
+                            _tipo,
+                            s.titulo,
+                            s.artista,
+                          );
+                      await _abrirUrl(url);
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -455,42 +459,46 @@ class _ResultadoWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (resolucao.isFallback) {
-      // Fallback: só mostra opção de busca manual
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '⚠️ Não encontramos automaticamente. Abra a busca no site:',
-            style: TextStyle(color: Colors.orange, fontSize: 13),
+          Text(
+            'Não encontramos automaticamente. Abra a busca no site:',
+            style: AppTextStyles.bodySmall(color: AppColors.alerta),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () => onAbrir(resolucao.url),
               icon: const Icon(Icons.search, color: Colors.white),
               label: Text(
-                  'Buscar ${tipo == "letra" ? "Letra" : "Cifra"} no site',
-                  style: const TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                'Buscar ${tipo == "letra" ? "Letra" : "Cifra"} no site',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.alerta,
+                foregroundColor: Colors.white,
+              ),
             ),
           ),
         ],
       );
     }
 
-    // Sugestões (medley oficial ou fuzzy)
     if (resolucao.sugestoes.isNotEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             resolucao.oficialYoutube
-                ? '🎵 Músicas oficiais detectadas neste vídeo:'
+                ? 'Músicas oficiais detectadas neste vídeo:'
                 : 'Você quis dizer...?',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            style: AppTextStyles.bodySmall(
+              color: context.textoSecund,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ...resolucao.sugestoes.map((s) => _SugestaoTile(
                 sugestao: s,
                 tipo: tipo,
@@ -500,40 +508,51 @@ class _ResultadoWidget extends StatelessWidget {
       );
     }
 
-    // Encontrou URL direto
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '✅ ${resolucao.titulo}',
-          style: AppTextStyles.subheading(color: Colors.greenAccent),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.sucesso,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                resolucao.titulo,
+                style: AppTextStyles.subheading(color: context.textoPrimario),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
-        Text(resolucao.artista,
-            style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(
+          resolucao.artista,
+          style: AppTextStyles.bodySmall(color: context.textoSecund),
+        ),
         if (resolucao.oficialYoutube) ...[
-          const SizedBox(height: 4),
-          const Text(
-            '🎵 Identificada pela tag oficial do YouTube',
-            style: TextStyle(color: AppColors.acento, fontSize: 11),
+          const SizedBox(height: 6),
+          Text(
+            'Identificada pela tag oficial do YouTube',
+            style: AppTextStyles.label(color: context.corPrimaria),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () => onAbrir(resolucao.url),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.acento,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 15),
             ),
             child: Text(
               'Abrir ${tipo == "letra" ? "Letra" : "Cifra"}',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -555,17 +574,31 @@ class _SugestaoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF2A2A3E),
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: context.bgSubtle,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.bgBorda),
+      ),
       child: ListTile(
-        leading: const Icon(Icons.queue_music, color: AppColors.acento),
-        title: Text(sugestao.titulo,
-            style: const TextStyle(color: Colors.white, fontSize: 14)),
-        subtitle: Text(sugestao.artista,
-            style: const TextStyle(color: Colors.white54, fontSize: 12)),
-        trailing: const Icon(Icons.arrow_forward_ios,
-            color: Colors.white38, size: 14),
+        leading: Icon(Icons.queue_music_rounded, color: context.corPrimaria),
+        title: Text(
+          sugestao.titulo,
+          style: AppTextStyles.body(
+            color: context.textoPrimario,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Text(
+          sugestao.artista,
+          style: AppTextStyles.bodySmall(color: context.textoSecund),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: context.textoMuted,
+          size: 15,
+        ),
         onTap: onTap,
       ),
     );
@@ -592,24 +625,30 @@ class _TipoChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
-          color: selecionado ? AppColors.acento : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          color: selecionado ? AppColors.acento : context.bgSubtle,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: selecionado ? AppColors.acento : Colors.white24),
+            color: selecionado ? AppColors.acento : context.bgBorda,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14,
-                color: selecionado ? Colors.white : Colors.white54),
-            const SizedBox(width: 4),
-            Text(label,
-                style: TextStyle(
-                    color: selecionado ? Colors.white : Colors.white54,
-                    fontSize: 13,
-                    fontWeight: selecionado ? FontWeight.bold : FontWeight.normal)),
+            Icon(
+              icon,
+              size: 16,
+              color: selecionado ? Colors.white : context.textoSecund,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTextStyles.bodySmall(
+                color: selecionado ? Colors.white : context.textoPrimario,
+                fontWeight: selecionado ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),

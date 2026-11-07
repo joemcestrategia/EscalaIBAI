@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/services/update_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../shared/widgets/app_widgets.dart';
 
 class UpdatePage extends StatefulWidget {
   final UpdateInfo updateInfo;
@@ -17,7 +18,8 @@ class UpdatePage extends StatefulWidget {
   State<UpdatePage> createState() => _UpdatePageState();
 }
 
-class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateMixin {
+class _UpdatePageState extends State<UpdatePage>
+    with SingleTickerProviderStateMixin {
   bool _isDownloading = false;
   double _progress = 0;
   final Dio _dio = Dio();
@@ -34,7 +36,7 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -58,9 +60,12 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
       }
 
       final dir = await getExternalStorageDirectory();
-      if (dir == null) throw Exception("Diretório de armazenamento não encontrado");
+      if (dir == null) {
+        throw Exception("Diretório de armazenamento não encontrado");
+      }
 
-      final savePath = "${dir.path}/escala_update_${widget.updateInfo.versionCode}.apk";
+      final savePath =
+          "${dir.path}/escala_update_${widget.updateInfo.versionCode}.apk";
 
       await _dio.download(
         widget.updateInfo.apkUrl,
@@ -76,32 +81,18 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Download concluído! Abrindo instalação...",
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppColors.sucesso,
-          ),
-        );
+        AppSnackbar.show(context, "Download concluído! Abrindo instalação...");
       }
 
       final result = await OpenFilex.open(savePath);
       debugPrint("OpenFilex resultado: ${result.message}");
     } catch (e) {
-      if (!CancelToken.isCancel(e as DioException)) {
-        if (mounted) {
-          setState(() {
-            _isDownloading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Erro ao baixar atualização: $e"),
-              backgroundColor: AppColors.perigo,
-            ),
-          );
-        }
+      if (e is DioException && CancelToken.isCancel(e)) return;
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+        AppSnackbar.show(context, "Erro ao baixar atualização: $e", erro: true);
       }
     }
   }
@@ -109,10 +100,10 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: context.bgPrincipal,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -120,77 +111,88 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
                 Align(
                   alignment: Alignment.topRight,
                   child: IconButton(
-                    icon: const Icon(PhosphorIconsRegular.x, color: Colors.white70),
+                    icon: Icon(
+                      PhosphorIconsBold.x,
+                      color: context.textoSecund,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 )
               else
-                const SizedBox(height: 48),
+                const SizedBox(height: 44),
 
               const Spacer(),
 
-              // Ícone animado em destaque
               Center(
                 child: ScaleTransition(
                   scale: _scaleAnimation,
                   child: Container(
-                    padding: const EdgeInsets.all(28),
+                    width: 96,
+                    height: 96,
                     decoration: BoxDecoration(
-                      color: AppColors.acento.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.acento.withValues(alpha: 0.4), width: 2),
+                      gradient: context.heroGradient,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.acento.withValues(alpha: 0.25),
-                          blurRadius: 35,
-                          spreadRadius: 8,
+                          color: context.corPrimaria.withValues(alpha: 0.28),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
                         ),
                       ],
                     ),
                     child: const Icon(
                       PhosphorIconsBold.rocketLaunch,
-                      size: 64,
-                      color: AppColors.acento,
+                      size: 46,
+                      color: Colors.white,
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Títulos
               Text(
                 "Nova versão disponível!",
                 textAlign: TextAlign.center,
-                style: AppTextStyles.heading(color: Colors.white).copyWith(fontSize: 24),
+                style: AppTextStyles.display(color: context.textoPrimario)
+                    .copyWith(fontSize: 26),
               ),
               const SizedBox(height: 8),
-              Text(
-                "Versão ${widget.updateInfo.versionName}",
-                textAlign: TextAlign.center,
-                style: AppTextStyles.subheading(color: AppColors.acento).copyWith(fontSize: 16),
+              Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: context.acentoSuave,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    "Versão ${widget.updateInfo.versionName}",
+                    style: AppTextStyles.label(color: context.acentoTexto),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 28),
 
-              // Card de Novidades (Changelog)
-              Container(
+              AppSurfaceCard(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white12),
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(PhosphorIconsBold.sparkle, color: AppColors.acento, size: 18),
+                        Icon(
+                          PhosphorIconsBold.sparkle,
+                          color: context.corPrimaria,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                          "O que há de novo",
-                          style: AppTextStyles.label(color: Colors.white).copyWith(fontSize: 14),
+                          "Novidades desta atualização",
+                          style: AppTextStyles.subheading(
+                            color: context.textoPrimario,
+                          ),
                         ),
                       ],
                     ),
@@ -198,8 +200,8 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
                     Text(
                       widget.updateInfo.changelog?.trim().isNotEmpty == true
                           ? widget.updateInfo.changelog!
-                          : "Melhorias de desempenho, estabilidade e novas correções na escala.",
-                      style: AppTextStyles.body(color: Colors.white70).copyWith(fontSize: 13, height: 1.5),
+                          : "Melhorias de desempenho, estabilidade e refinamentos na escala.",
+                      style: AppTextStyles.body(color: context.textoSecund),
                     ),
                   ],
                 ),
@@ -207,53 +209,42 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
 
               const Spacer(),
 
-              // Área de Ação
               if (_isDownloading) ...[
                 Text(
                   "Baixando atualização... ${(_progress * 100).toStringAsFixed(0)}%",
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.body(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: AppTextStyles.subheading(color: context.textoPrimario),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(99),
                   child: LinearProgressIndicator(
                     value: _progress > 0 ? _progress : null,
                     minHeight: 10,
-                    backgroundColor: Colors.white12,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.acento),
+                    backgroundColor: context.bgBorda,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      context.corPrimaria,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
               ] else ...[
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: _startDownload,
+                  icon: const Icon(PhosphorIconsBold.downloadSimple, size: 20),
+                  label: const Text("Atualizar agora"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.acento,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 6,
-                  ),
-                  child: const Text(
-                    "ATUALIZAR AGORA",
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                    ),
                   ),
                 ),
-
                 if (!widget.updateInfo.forceUpdate) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white54,
-                    ),
+                    style:
+                        TextButton.styleFrom(foregroundColor: context.textoSecund),
                     child: const Text("Lembrar mais tarde"),
                   ),
                 ],
@@ -265,4 +256,3 @@ class _UpdatePageState extends State<UpdatePage> with SingleTickerProviderStateM
     );
   }
 }
-

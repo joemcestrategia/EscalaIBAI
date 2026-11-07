@@ -19,12 +19,12 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Barra de status transparente
+  // Barra de status transparente (ícones escuros para o padrão Claro Editorial)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Color(0xFF1A1D27),
-    systemNavigationBarIconBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Color(0xFFFFFFFF),
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
   // Locale PT-BR

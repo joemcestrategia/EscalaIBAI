@@ -429,8 +429,16 @@ class _CifraWebViewScreenState extends State<CifraWebViewScreen>
     return Scaffold(
       backgroundColor: AppColors.bgPrincipal,
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(
+          widget.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         backgroundColor: AppColors.bgPrincipal,
+        foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
@@ -449,13 +457,13 @@ class _CifraWebViewScreenState extends State<CifraWebViewScreen>
                 : 'Tela sempre ligada (Desativada)',
             icon: Icon(
               _wakeLockActive ? Icons.lightbulb : Icons.lightbulb_outline,
-              color: _wakeLockActive ? AppColors.acento : Colors.white54,
+              color: _wakeLockActive ? AppColors.acentoDark : Colors.white54,
             ),
             onPressed: _toggleWakeLock,
           ),
           IconButton(
             tooltip: 'Recarregar página',
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
               _controller.reload();
             },

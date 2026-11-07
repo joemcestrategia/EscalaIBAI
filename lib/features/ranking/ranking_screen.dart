@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
+import '../../shared/widgets/app_widgets.dart';
 
 class RankingScreen extends ConsumerStatefulWidget {
   const RankingScreen({super.key});
@@ -38,165 +39,217 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
   Widget build(BuildContext context) {
     final key = '${_ano}_$_mes';
     final rankingAsync = ref.watch(_rankingProvider(key));
-    final meses = [
-      'Jan',
-      'Fev',
-      'Mar',
-      'Abr',
-      'Mai',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Set',
-      'Out',
-      'Nov',
-      'Dez'
+    const meses = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
 
     return Scaffold(
       backgroundColor: context.bgPrincipal,
       appBar: AppBar(
-        title: Text('Ranking', style: AppTextStyles.heading()),
+        title: Text('Participações no Mês', style: AppTextStyles.heading()),
       ),
       body: Column(
         children: [
           // Seletor de mês/ano
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  initialValue: _mes,
-                  style: AppTextStyles.body(),
-                  dropdownColor: context.bgCard,
-                  decoration: const InputDecoration(labelText: 'Mês'),
-                  items: List.generate(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _mes,
+                    style: AppTextStyles.body(color: context.textoPrimario),
+                    dropdownColor: context.bgCard,
+                    decoration: const InputDecoration(labelText: 'Mês'),
+                    items: List.generate(
                       12,
                       (i) => DropdownMenuItem(
-                            value: i + 1,
-                            child: Text(meses[i]),
-                          )),
-                  onChanged: (v) => setState(() => _mes = v!),
+                        value: i + 1,
+                        child: Text(meses[i]),
+                      ),
+                    ),
+                    onChanged: (v) => setState(() => _mes = v!),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  initialValue: _ano,
-                  style: AppTextStyles.body(),
-                  dropdownColor: context.bgCard,
-                  decoration: const InputDecoration(labelText: 'Ano'),
-                  items: List.generate(
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _ano,
+                    style: AppTextStyles.body(color: context.textoPrimario),
+                    dropdownColor: context.bgCard,
+                    decoration: const InputDecoration(labelText: 'Ano'),
+                    items: List.generate(
                       5,
                       (i) => DropdownMenuItem(
-                            value: DateTime.now().year - 2 + i,
-                            child: Text('${DateTime.now().year - 2 + i}'),
-                          )),
-                  onChanged: (v) => setState(() => _ano = v!),
+                        value: DateTime.now().year - 2 + i,
+                        child: Text('${DateTime.now().year - 2 + i}'),
+                      ),
+                    ),
+                    onChanged: (v) => setState(() => _ano = v!),
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
             child: rankingAsync.when(
               data: (lista) {
                 if (lista.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(PhosphorIconsBold.trophy,
-                            color: AppColors.textoMuted, size: 48),
-                        const SizedBox(height: 12),
-                        Text('Nenhuma escala em $meses[_mes - 1] de $_ano.',
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.trophy,
+                            color: context.textoMuted,
+                            size: 52,
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Nenhuma escala registrada em ${meses[_mes - 1]} de $_ano.',
+                            textAlign: TextAlign.center,
                             style: AppTextStyles.body(
-                                color: context.textoSecund)),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => ref.invalidate(_rankingProvider(key)),
-                          child: const Text('Tentar Novamente'),
-                        ),
-                      ],
+                              color: context.textoSecund,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () =>
+                                ref.invalidate(_rankingProvider(key)),
+                            child: const Text('Atualizar'),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
+
                 final max = lista.first.value;
                 return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
                   itemCount: lista.length,
                   itemBuilder: (_, i) {
                     final entry = lista[i];
                     final pct = max > 0 ? entry.value / max : 0.0;
-                    Color cor;
+                    final Color corDestaque;
                     IconData? icone;
+
                     if (i == 0) {
-                      cor = const Color(0xFFFFD700);
-                      icone = PhosphorIconsBold.trophy;
+                      corDestaque = context.isDark
+                          ? const Color(0xFFFBBF24)
+                          : const Color(0xFFD97706);
+                      icone = PhosphorIconsFill.trophy;
                     } else if (i == 1) {
-                      cor = const Color(0xFFC0C0C0);
-                      icone = PhosphorIconsBold.medal;
+                      corDestaque = context.isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF475569);
+                      icone = PhosphorIconsFill.medal;
                     } else if (i == 2) {
-                      cor = const Color(0xFFCD7F32);
-                      icone = PhosphorIconsBold.medal;
+                      corDestaque = context.isDark
+                          ? const Color(0xFFFB923C)
+                          : const Color(0xFFB45309);
+                      icone = PhosphorIconsFill.medal;
                     } else {
-                      cor = context.textoSecund;
+                      corDestaque = context.corPrimaria;
                       icone = null;
                     }
 
                     return TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
-                      duration: Duration(milliseconds: 300 + i * 60),
-                      curve: Curves.easeOut,
+                      duration: Duration(milliseconds: 250 + (i * 45).clamp(0, 450)),
+                      curve: Curves.easeOutCubic,
                       builder: (_, v, child) => Opacity(
                         opacity: v,
                         child: Transform.translate(
-                          offset: Offset(0, (1 - v) * 20),
+                          offset: Offset(0, (1 - v) * 16),
                           child: child,
                         ),
                       ),
-                      child: Container(
+                      child: AppSurfaceCard(
                         margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: context.bgCard,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: i < 3
-                                ? cor.withValues(alpha: 0.4)
-                                : context.bgBorda,
-                          ),
-                        ),
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(16),
+                        borderRadius: 18,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(children: [
-                              Container(
-                                width: 30,
-                                alignment: Alignment.center,
-                                child: icone != null
-                                    ? Icon(icone, color: cor, size: 20)
-                                    : Text('${i + 1}',
-                                        style: AppTextStyles.mono(color: cor)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(entry.key,
-                                    style: AppTextStyles.body()),
-                              ),
-                              Text(
-                                '${entry.value}×',
-                                style: AppTextStyles.mono(color: cor),
-                              ),
-                            ]),
-                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: i < 3
+                                        ? corDestaque.withValues(alpha: 0.14)
+                                        : context.bgSubtle,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: icone != null
+                                      ? Icon(icone, color: corDestaque, size: 19)
+                                      : Text(
+                                          '${i + 1}º',
+                                          style: AppTextStyles.bodySmall(
+                                            color: context.textoSecund,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                ),
+                                const SizedBox(width: 12),
+                                AppAvatar(name: entry.key, size: 40),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    entry.key,
+                                    style: AppTextStyles.subheading(
+                                      color: context.textoPrimario,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: corDestaque.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${entry.value}×',
+                                    style: AppTextStyles.mono(
+                                      color: corDestaque,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                               child: LinearProgressIndicator(
                                 value: pct,
-                                backgroundColor: context.bgBorda,
-                                valueColor: AlwaysStoppedAnimation<Color>(cor),
-                                minHeight: 5,
+                                backgroundColor: context.bgSubtle,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(corDestaque),
+                                minHeight: 6,
                               ),
                             ),
                           ],
@@ -207,9 +260,14 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
                 );
               },
               loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.acento)),
-              error: (e, _) =>
-                  Center(child: Text('Erro: $e', style: AppTextStyles.body())),
+                child: CircularProgressIndicator(color: AppColors.acento),
+              ),
+              error: (e, _) => Center(
+                child: Text(
+                  'Erro: $e',
+                  style: AppTextStyles.body(color: AppColors.perigo),
+                ),
+              ),
             ),
           ),
         ],

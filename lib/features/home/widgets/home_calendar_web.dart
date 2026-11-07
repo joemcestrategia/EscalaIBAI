@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/models/escala_item.dart';
 import '../../../core/models/agenda_item.dart';
+import '../../../shared/widgets/app_widgets.dart';
 
 class HomeCalendarWeb extends ConsumerStatefulWidget {
   const HomeCalendarWeb({super.key});
@@ -19,15 +19,15 @@ class HomeCalendarWeb extends ConsumerStatefulWidget {
 class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
   DateTime _focusedDay = DateTime.now();
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  List<EscalaItem> _getEscalasForDay(DateTime day, List<EscalaItem> todasEscalas) {
+  List<EscalaItem> _getEscalasForDay(
+    DateTime day,
+    List<EscalaItem> todasEscalas,
+  ) {
     return todasEscalas.where((e) {
       final eDate = DateTime.parse(e.data);
-      return eDate.year == day.year && eDate.month == day.month && eDate.day == day.day;
+      return eDate.year == day.year &&
+          eDate.month == day.month &&
+          eDate.day == day.day;
     }).toList();
   }
 
@@ -37,17 +37,8 @@ class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
     final agendaAsync = ref.watch(agendaProvider);
     final selectedDate = ref.watch(globalSelectedDateProvider);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? context.bgBorda
-              : AppColors.bgBordaLight,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(18),
       child: proximaAsync.when(
         data: (escalas) {
           return Column(
@@ -55,19 +46,32 @@ class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
             children: [
               Row(
                 children: [
-                  const Icon(PhosphorIconsBold.calendar, color: AppColors.acento, size: 20),
+                  Icon(
+                    PhosphorIconsFill.calendarBlank,
+                    color: context.corPrimaria,
+                    size: 22,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Calendário', style: AppTextStyles.heading(color: AppColors.acento).copyWith(fontSize: 18)),
+                  Text(
+                    'Calendário',
+                    style: AppTextStyles.subheading(
+                      color: context.textoPrimario,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               TableCalendar(
+                locale: 'pt_BR',
+                rowHeight: 44,
+                daysOfWeekHeight: 28,
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(selectedDate, day),
                 onDaySelected: (selectedDay, focusedDay) {
-                  ref.read(globalSelectedDateProvider.notifier).state = selectedDay;
+                  ref.read(globalSelectedDateProvider.notifier).state =
+                      selectedDay;
                   setState(() {
                     _focusedDay = focusedDay;
                   });
@@ -77,58 +81,72 @@ class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
                 headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
-                  titleTextStyle: AppTextStyles.body(color: context.textoPrimario).copyWith(fontWeight: FontWeight.bold),
-                  leftChevronIcon: const Icon(Icons.chevron_left, color: AppColors.acento),
-                  rightChevronIcon: const Icon(Icons.chevron_right, color: AppColors.acento),
+                  titleTextStyle: AppTextStyles.subheading(
+                    color: context.textoPrimario,
+                  ),
+                  leftChevronIcon: Icon(
+                    Icons.chevron_left_rounded,
+                    color: context.corPrimaria,
+                  ),
+                  rightChevronIcon: Icon(
+                    Icons.chevron_right_rounded,
+                    color: context.corPrimaria,
+                  ),
                 ),
                 calendarStyle: CalendarStyle(
                   todayDecoration: BoxDecoration(
-                    color: AppColors.acento.withValues(alpha: 0.3),
+                    color: context.acentoSuave,
                     shape: BoxShape.circle,
                   ),
-                  selectedDecoration: const BoxDecoration(
-                    color: AppColors.acento,
+                  todayTextStyle: AppTextStyles.bodySmall(
+                    color: context.acentoTexto,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  selectedDecoration: BoxDecoration(
+                    color: context.corPrimaria,
                     shape: BoxShape.circle,
                   ),
-                  defaultTextStyle: AppTextStyles.bodySmall(color: context.textoPrimario),
-                  weekendTextStyle: AppTextStyles.bodySmall(color: context.textoSecund),
-                  outsideTextStyle: AppTextStyles.bodySmall(color: context.textoSecund.withValues(alpha: 0.5)),
+                  selectedTextStyle: AppTextStyles.bodySmall(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  defaultTextStyle: AppTextStyles.bodySmall(
+                    color: context.textoPrimario,
+                  ),
+                  weekendTextStyle: AppTextStyles.bodySmall(
+                    color: context.textoSecund,
+                  ),
+                  outsideTextStyle: AppTextStyles.bodySmall(
+                    color: context.textoMuted.withValues(alpha: 0.45),
+                  ),
                 ),
                 daysOfWeekStyle: DaysOfWeekStyle(
-                  weekdayStyle: AppTextStyles.monoSmall(color: context.textoSecund),
-                  weekendStyle: AppTextStyles.monoSmall(color: context.textoSecund),
+                  weekdayStyle: AppTextStyles.label(color: context.textoSecund),
+                  weekendStyle: AppTextStyles.label(color: context.textoSecund),
                 ),
                 calendarBuilders: CalendarBuilders(
-                  markerBuilder: (context, day, events) => const SizedBox(), // Remove as bolinhas
+                  markerBuilder: (context, day, events) => const SizedBox(),
                   defaultBuilder: (context, day, focusedDay) {
-                    final temEscala = _getEscalasForDay(day, escalas).isNotEmpty;
+                    final temEscala =
+                        _getEscalasForDay(day, escalas).isNotEmpty;
                     if (temEscala) {
                       return Container(
+                        margin: const EdgeInsets.all(5),
                         alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: context.acentoSuave,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Text(
                           '${day.day}',
-                          style: AppTextStyles.bodySmall(color: AppColors.acento, fontWeight: FontWeight.bold),
+                          style: AppTextStyles.bodySmall(
+                            color: context.acentoTexto,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       );
                     }
                     return null;
-                  },
-                  todayBuilder: (context, day, focusedDay) {
-                    return Container(
-                      margin: const EdgeInsets.all(6.0),
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: AppColors.acento, // Dia atual com círculo amarelo preenchido
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${day.day}',
-                        style: AppTextStyles.bodySmall(
-                          color: Colors.black, // Texto preto para contrastar com amarelo
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
                   },
                 ),
                 availableGestures: AvailableGestures.none,
@@ -146,28 +164,45 @@ class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Divider(height: 32),
-                      Text('Eventos do Dia', style: AppTextStyles.label(color: context.textoSecund)),
-                      const SizedBox(height: 8),
+                      const Divider(height: 28),
+                      Text(
+                        'Eventos do Dia',
+                        style: AppTextStyles.label(color: context.textoSecund),
+                      ),
+                      const SizedBox(height: 10),
                       ...eventosDia.map((ag) {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.perigo.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.perigo.withValues(alpha: 0.2)),
+                            color: AppColors.alerta.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
                             children: [
-                              const Icon(PhosphorIconsBold.calendarStar, color: AppColors.perigo, size: 20),
+                              const Icon(
+                                PhosphorIconsBold.calendarStar,
+                                color: AppColors.alerta,
+                                size: 20,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(ag.titulo, style: AppTextStyles.bodySmall(color: context.textoPrimario).copyWith(fontWeight: FontWeight.bold)),
-                                    Text(ag.horario, style: AppTextStyles.monoSmall(color: context.textoSecund)),
+                                    Text(
+                                      ag.titulo,
+                                      style: AppTextStyles.bodySmall(
+                                        color: context.textoPrimario,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      ag.horario,
+                                      style: AppTextStyles.monoSmall(
+                                        color: context.textoSecund,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -184,8 +219,15 @@ class _HomeCalendarWebState extends ConsumerState<HomeCalendarWeb> {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.acento)),
-        error: (err, _) => Center(child: Text('Erro ao carregar', style: AppTextStyles.body(color: AppColors.perigo))),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.corPrimaria),
+        ),
+        error: (err, _) => Center(
+          child: Text(
+            'Erro ao carregar',
+            style: AppTextStyles.body(color: AppColors.perigo),
+          ),
+        ),
       ),
     );
   }

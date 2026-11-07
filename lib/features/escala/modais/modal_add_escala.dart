@@ -103,10 +103,7 @@ class _ModalAddEscalaState extends ConsumerState<ModalAddEscala> {
                         firstDate: DateTime(2024),
                         lastDate: DateTime(2030),
                         builder: (c, w) => Theme(
-                          data: ThemeData.dark().copyWith(
-                            colorScheme:
-                                const ColorScheme.dark(primary: AppColors.acento),
-                          ),
+                          data: Theme.of(context),
                           child: w!,
                         ),
                       );
@@ -212,9 +209,17 @@ class _ModalAddEscalaState extends ConsumerState<ModalAddEscala> {
                         children: funcs.map((f) {
                           final selecionada = _funcoesSel.contains(f);
                           return FilterChip(
-                            label: Text(f, style: AppTextStyles.bodySmall(
-                              color: selecionada ? Colors.black : context.textoPrimario
-                            )),
+                            label: Text(
+                              f,
+                              style: AppTextStyles.bodySmall(
+                                color: selecionada
+                                    ? Colors.white
+                                    : context.textoPrimario,
+                                fontWeight: selecionada
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
                             selected: selecionada,
                             onSelected: (selected) {
                               setState(() {
@@ -226,12 +231,14 @@ class _ModalAddEscalaState extends ConsumerState<ModalAddEscala> {
                               });
                             },
                             selectedColor: AppColors.acento,
-                            backgroundColor: context.bgBorda.withValues(alpha: 0.3),
-                            checkmarkColor: Colors.black,
+                            backgroundColor: context.bgSubtle,
+                            checkmarkColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(12),
                               side: BorderSide(
-                                color: selecionada ? AppColors.acento : context.bgBorda,
+                                color: selecionada
+                                    ? AppColors.acento
+                                    : context.bgBorda,
                               ),
                             ),
                           );

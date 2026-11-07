@@ -29,29 +29,51 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(userRoleProvider);
-    
+
     if (role == UserRole.membro) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: context.bgPrincipal,
         appBar: AppBar(
-          title: Text('Membros', style: AppTextStyles.heading()),
+          title: Text('Equipe', style: AppTextStyles.heading()),
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(PhosphorIconsBold.lockKey, size: 64, color: AppColors.acento),
-              const SizedBox(height: 16),
-              Text(
-                'Acesso Restrito',
-                style: AppTextStyles.subheading(color: context.textoPrimario),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: AppSurfaceCard(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: context.acentoSuave,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      PhosphorIconsBold.lockKey,
+                      size: 30,
+                      color: context.corPrimaria,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Área da Liderança',
+                    style: AppTextStyles.subheading(
+                      color: context.textoPrimario,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'O gerenciamento de membros e funções é reservado para líderes.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodySmall(color: context.textoSecund),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Esta área é reservada para Líderes.',
-                style: AppTextStyles.bodySmall(color: context.textoSecund),
-              ),
-            ],
+            ),
           ),
         ),
       );
@@ -63,45 +85,60 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
     final busca = ref.watch(membrosBuscaProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: context.bgPrincipal,
       appBar: AppBar(
-        title: Text('Membros', style: AppTextStyles.heading()),
+        title: Text('Equipe', style: AppTextStyles.heading()),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openModal(context, ref, null),
-        child: const Icon(PhosphorIconsBold.plus),
+        icon: const Icon(PhosphorIconsBold.userPlus, size: 20),
+        label: Text(
+          'Novo Membro',
+          style: AppTextStyles.button(color: Colors.white),
+        ),
       ),
       body: Column(
         children: [
-          // Busca
+          // Busca ampla e limpa
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: TextField(
               controller: _buscaController,
-              style: AppTextStyles.body(),
-              onChanged: (v) =>
-                  ref.read(membrosBuscaProvider.notifier).state = v,
+              style: AppTextStyles.body(color: context.textoPrimario),
+              onChanged: (v) {
+                setState(() {});
+                ref.read(membrosBuscaProvider.notifier).state = v;
+              },
               decoration: InputDecoration(
-                hintText: 'Buscar por nome...',
-                prefixIcon: Icon(PhosphorIconsBold.magnifyingGlass,
-                    color: context.textoSecund, size: 18),
-                suffixIcon: _buscaController.text.isNotEmpty 
-                  ? IconButton(
-                      icon: Icon(Icons.clear, color: context.textoSecund, size: 18),
-                      onPressed: () {
-                        _buscaController.clear();
-                        ref.read(membrosBuscaProvider.notifier).state = '';
-                      },
-                    )
-                  : null,
+                hintText: 'Buscar integrante por nome...',
+                prefixIcon: Icon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  color: context.textoSecund,
+                  size: 20,
+                ),
+                suffixIcon: _buscaController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          PhosphorIconsBold.x,
+                          color: context.textoSecund,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          _buscaController.clear();
+                          setState(() {});
+                          ref.read(membrosBuscaProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
               ),
             ),
           ),
-          // Filtro por ministério
+
+          // Filtro por ministério em pílulas Safira
           ministeriosAsync.when(
             data: (mins) => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
                   _FiltroChip(
@@ -111,20 +148,23 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
                         .read(membrosMinisterioFiltroProvider.notifier)
                         .state = null,
                   ),
-                  ...mins.map((m) => _FiltroChip(
-                        label: m.nome,
-                        selecionado: filtro == m.nome,
-                        onTap: () => ref
-                            .read(membrosMinisterioFiltroProvider.notifier)
-                            .state = m.nome,
-                      )),
+                  ...mins.map(
+                    (m) => _FiltroChip(
+                      label: m.nome,
+                      selecionado: filtro == m.nome,
+                      onTap: () => ref
+                          .read(membrosMinisterioFiltroProvider.notifier)
+                          .state = m.nome,
+                    ),
+                  ),
                 ],
               ),
             ),
-            loading: () => const SizedBox(height: 40),
-            error: (_, __) => const SizedBox(),
+            loading: () => const SizedBox(height: 44),
+            error: (_, __) => const SizedBox.shrink(),
           ),
-          // Lista
+
+          // Lista de integrantes
           Expanded(
             child: RefreshIndicator(
               color: AppColors.acento,
@@ -138,19 +178,34 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
                   final filtrada = busca.isEmpty
                       ? lista
                       : lista
-                          .where((m) =>
-                              m.nome.toLowerCase().contains(busca.toLowerCase()))
+                          .where(
+                            (m) => m.nome
+                                .toLowerCase()
+                                .contains(busca.toLowerCase()),
+                          )
                           .toList();
 
                   if (filtrada.isEmpty) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
                       children: [
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.14,
+                        ),
+                        Icon(
+                          PhosphorIconsRegular.usersThree,
+                          size: 48,
+                          color: context.textoMuted,
+                        ),
+                        const SizedBox(height: 12),
                         Center(
-                          child: Text('Nenhum membro encontrado.',
-                              style:
-                                  AppTextStyles.body(color: context.textoSecund)),
+                          child: Text(
+                            'Nenhum integrante encontrado.',
+                            style: AppTextStyles.body(
+                              color: context.textoSecund,
+                            ),
+                          ),
                         ),
                       ],
                     );
@@ -158,17 +213,18 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
 
                   return ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 96),
                     itemCount: filtrada.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => _MembroCard(
                       membro: filtrada[i],
                       onEdit: () => _openModal(context, ref, filtrada[i]),
                       onDelete: () async {
                         final ok = await ConfirmDialog.show(
                           context,
-                          titulo: 'Excluir',
-                          mensagem: 'Excluir o membro "${filtrada[i].nome}"?',
+                          titulo: 'Excluir integrante',
+                          mensagem:
+                              'Deseja remover "${filtrada[i].nome}" da equipe?',
                           labelConfirmar: 'Excluir',
                           perigo: true,
                         );
@@ -183,20 +239,34 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
                   );
                 },
                 loading: () => const Center(
-                    child: CircularProgressIndicator(color: AppColors.acento)),
+                  child: CircularProgressIndicator(color: AppColors.acento),
+                ),
                 error: (e, _) => ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(24),
                   children: [
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-                    Center(child: Text('Erro ao carregar membros.', style: AppTextStyles.body(color: AppColors.perigo))),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(e.toString(), style: AppTextStyles.bodySmall(color: context.textoSecund), textAlign: TextAlign.center),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.16,
                     ),
                     Center(
-                      child: ElevatedButton(
+                      child: Text(
+                        'Erro ao carregar integrantes.',
+                        style: AppTextStyles.body(color: AppColors.perigo),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      e.toString(),
+                      style: AppTextStyles.bodySmall(
+                        color: context.textoSecund,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: AppButton(
+                        label: 'Tentar Novamente',
                         onPressed: () => ref.invalidate(membrosProvider),
-                        child: const Text('Tentar Novamente'),
                       ),
                     ),
                   ],
@@ -210,10 +280,14 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
   }
 
   Future<void> _openModal(
-      BuildContext context, WidgetRef ref, Membro? membro) async {
+    BuildContext context,
+    WidgetRef ref,
+    Membro? membro,
+  ) async {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => ModalMembro(membro: membro),
     );
     ref.invalidate(membrosProvider);
@@ -233,25 +307,30 @@ class _FiltroChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selecionado
-              ? AppColors.acento.withValues(alpha: 0.15)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selecionado ? AppColors.acento : (Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: selecionado ? AppColors.acento : context.bgCard,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: selecionado ? AppColors.acento : context.bgBorda,
+              ),
+            ),
+            child: Text(
+              label,
+              style: AppTextStyles.bodySmall(
+                color: selecionado ? Colors.white : context.textoSecund,
+                fontWeight: selecionado ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.label(
-              color: selecionado ? AppColors.acento : context.textoSecund),
         ),
       ),
     );
@@ -271,45 +350,122 @@ class _MembroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.acento.withValues(alpha: 0.15),
-          child: Text(
-            membro.nome.isNotEmpty ? membro.nome[0].toUpperCase() : '?',
-            style: AppTextStyles.subheading(color: AppColors.acento),
+    final funcoes = membro.funcoes;
+
+    return AppSurfaceCard(
+      onTap: onEdit,
+      padding: const EdgeInsets.all(16),
+      borderRadius: 18,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppAvatar(name: membro.nome, size: 46),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  membro.nome,
+                  style: AppTextStyles.subheading(
+                    color: context.textoPrimario,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (membro.ministerio.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    membro.ministerio,
+                    style: AppTextStyles.bodySmall(
+                      color: context.textoSecund,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                if (funcoes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: funcoes
+                        .map(
+                          (f) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: context.acentoSuave,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              f,
+                              style: AppTextStyles.label(
+                                color: context.acentoTexto,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-        title: Text(membro.nome, style: AppTextStyles.body()),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(membro.ministerio, style: AppTextStyles.bodySmall()),
-            if (membro.funcao.isNotEmpty)
-              Text(membro.funcao,
-                  style: AppTextStyles.bodySmall(color: AppColors.acento)),
-          ],
-        ),
-        isThreeLine: membro.funcao.isNotEmpty,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(PhosphorIconsBold.pencil,
-                  color: AppColors.acentoAzul, size: 18),
-              onPressed: onEdit,
-            ),
-            IconButton(
-              icon: const Icon(PhosphorIconsBold.trash,
-                  color: AppColors.perigo, size: 18),
-              onPressed: onDelete,
-            ),
-          ],
+          const SizedBox(width: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ActionIconButton(
+                icon: PhosphorIconsRegular.pencilSimple,
+                color: context.corPrimaria,
+                tooltip: 'Editar',
+                onTap: onEdit,
+              ),
+              const SizedBox(width: 6),
+              _ActionIconButton(
+                icon: PhosphorIconsRegular.trash,
+                color: AppColors.perigo,
+                tooltip: 'Excluir',
+                onTap: onDelete,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ActionIconButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color.withValues(alpha: context.isDark ? 0.14 : 0.09),
+        borderRadius: BorderRadius.circular(11),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(11),
+          onTap: onTap,
+          child: SizedBox(
+            width: 38,
+            height: 38,
+            child: Icon(icon, color: color, size: 19),
+          ),
         ),
       ),
     );
@@ -329,6 +485,7 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nome;
   late TextEditingController _email;
+  late TextEditingController _nascimentoCtrl;
   String? _nascimento;
   String? _ministerio;
   List<String> _funcoesSel = [];
@@ -343,7 +500,7 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
     'Quarta',
     'Quinta',
     'Sexta',
-    'Sábado'
+    'Sábado',
   ];
   final List<String> _tiposEscala = ['Sem restrição', 'Herculano A'];
 
@@ -354,18 +511,29 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
     _nome = TextEditingController(text: m?.nome ?? '');
     _email = TextEditingController(text: m?.email ?? '');
     _nascimento = m?.nascimento;
+    _nascimentoCtrl = TextEditingController(
+      text: _formatarDataExibicao(_nascimento),
+    );
     _ministerio = m?.ministerio.isEmpty == true ? null : m?.ministerio;
-    _funcoesSel = m?.funcoes ?? [];
+    _funcoesSel = List<String>.from(m?.funcoes ?? []);
     _escalaTrab = m?.escalaTrabaho.isEmpty == true
         ? 'Sem restrição'
         : (m?.escalaTrabaho ?? 'Sem restrição');
-    _diasIndisp = m?.diasIndisponiveisList ?? [];
+    _diasIndisp = List<String>.from(m?.diasIndisponiveisList ?? []);
+  }
+
+  String _formatarDataExibicao(String? iso) {
+    if (iso == null || iso.trim().isEmpty) return '';
+    final parsed = DateTime.tryParse(iso);
+    if (parsed == null) return iso;
+    return DateFormat('dd/MM/yyyy').format(parsed);
   }
 
   @override
   void dispose() {
     _nome.dispose();
     _email.dispose();
+    _nascimentoCtrl.dispose();
     super.dispose();
   }
 
@@ -377,14 +545,15 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
         : const AsyncData<List<Funcao>>([]);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.9,
+      initialChildSize: 0.88,
       maxChildSize: 0.95,
-      minChildSize: 0.5,
+      minChildSize: 0.55,
       expand: false,
       builder: (_, ctrl) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.bgCard,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: context.bgBorda),
         ),
         child: LoadingOverlay(
           loading: _loading,
@@ -396,86 +565,115 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
               padding: EdgeInsets.only(
                 left: 20,
                 right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20 + MediaQuery.of(context).padding.bottom,
+                top: 14,
+                bottom: MediaQuery.of(context).viewInsets.bottom +
+                    24 +
+                    MediaQuery.of(context).padding.bottom,
               ),
               children: [
                 Center(
                   child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
+                    width: 42,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 18),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight,
-                      borderRadius: BorderRadius.circular(2),
+                      color: context.bgBorda,
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
                 ),
-                Text(
-                  widget.membro == null ? 'Novo Membro' : 'Editar Membro',
-                  style: AppTextStyles.heading(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.membro == null
+                            ? 'Novo Integrante'
+                            : 'Editar Integrante',
+                        style: AppTextStyles.heading(
+                          color: context.textoPrimario,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(
+                        PhosphorIconsBold.x,
+                        color: context.textoSecund,
+                        size: 20,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 AppTextField(
-                  label: 'Nome *',
+                  label: 'Nome completo *',
                   controller: _nome,
-                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 AppTextField(
                   label: 'E-mail',
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 AppTextField(
-                  label: 'Nascimento',
+                  label: 'Data de nascimento',
                   readOnly: true,
-                  controller: TextEditingController(text: _nascimento ?? ''),
+                  controller: _nascimentoCtrl,
+                  hint: 'Selecionar data',
                   onTap: () async {
+                    final inicial = (_nascimento != null &&
+                            DateTime.tryParse(_nascimento!) != null)
+                        ? DateTime.parse(_nascimento!)
+                        : DateTime(2000);
                     final d = await showDatePicker(
                       context: context,
-                      initialDate: _nascimento != null
-                          ? DateTime.parse(_nascimento!)
-                          : DateTime(2000),
+                      initialDate: inicial,
                       firstDate: DateTime(1930),
                       lastDate: DateTime.now(),
-                      builder: (c, w) => Theme(
-                        data: ThemeData.dark().copyWith(
-                          colorScheme:
-                              const ColorScheme.dark(primary: AppColors.acento),
-                        ),
-                        child: w!,
-                      ),
                     );
                     if (d != null) {
-                      setState(() =>
-                          _nascimento = DateFormat('yyyy-MM-dd').format(d));
+                      setState(() {
+                        _nascimento = DateFormat('yyyy-MM-dd').format(d);
+                        _nascimentoCtrl.text =
+                            DateFormat('dd/MM/yyyy').format(d);
+                      });
                     }
                   },
-                  suffixIcon:
-                      const Icon(Icons.cake, color: AppColors.acento, size: 18),
+                  suffixIcon: Icon(
+                    PhosphorIconsRegular.cake,
+                    color: context.corPrimaria,
+                    size: 20,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 ministeriosAsync.when(
                   data: (mins) {
                     final items = [...mins];
-                    if (_ministerio != null && !items.any((m) => m.nome == _ministerio)) {
+                    if (_ministerio != null &&
+                        !items.any((m) => m.nome == _ministerio)) {
                       items.add(Ministerio(nome: _ministerio!));
                     }
-                    
+
                     return DropdownButtonFormField<String>(
-                      value: _ministerio,
-                      style: AppTextStyles.body(),
+                      initialValue: _ministerio,
+                      style: AppTextStyles.body(color: context.textoPrimario),
                       dropdownColor: context.bgCard,
                       decoration:
                           const InputDecoration(labelText: 'Ministério *'),
                       items: items
-                          .map((m) => DropdownMenuItem(value: m.nome, child: Text(m.nome)))
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m.nome,
+                              child: Text(m.nome),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) => setState(() {
                         _ministerio = v;
@@ -484,41 +682,84 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
                       validator: (v) => v == null ? 'Selecione' : null,
                     );
                   },
-                  loading: () => const CircularProgressIndicator(),
-                  error: (_, __) => const SizedBox(),
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(color: AppColors.acento),
+                    ),
+                  ),
+                  error: (_, __) => const SizedBox.shrink(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
                 if (_ministerio != null) ...[
-                  Text('Funções *', style: AppTextStyles.label()),
+                  Text(
+                    'Funções no ministério',
+                    style: AppTextStyles.bodySmall(
+                      color: context.textoPrimario,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   funcoesAsync.when(
-                    data: (funcs) => Column(
-                      children: funcs
-                          .map((f) => CheckboxListTile(
-                                dense: true,
-                                value: _funcoesSel.contains(f.nomeFuncao),
-                                activeColor: AppColors.acento,
-                                title: Text(f.nomeFuncao,
-                                    style: AppTextStyles.body()),
-                                onChanged: (v) => setState(() {
-                                  if (v == true) {
+                    data: (funcs) => funcs.isEmpty
+                        ? Text(
+                            'Nenhuma função cadastrada neste ministério.',
+                            style: AppTextStyles.bodySmall(
+                              color: context.textoSecund,
+                            ),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: funcs.map((f) {
+                              final sel = _funcoesSel.contains(f.nomeFuncao);
+                              return FilterChip(
+                                label: Text(
+                                  f.nomeFuncao,
+                                  style: AppTextStyles.bodySmall(
+                                    color: sel
+                                        ? Colors.white
+                                        : context.textoPrimario,
+                                    fontWeight: sel
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                selected: sel,
+                                selectedColor: AppColors.acento,
+                                backgroundColor: context.bgSubtle,
+                                checkmarkColor: Colors.white,
+                                side: BorderSide(
+                                  color: sel
+                                      ? AppColors.acento
+                                      : context.bgBorda,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                onSelected: (v) => setState(() {
+                                  if (v) {
                                     _funcoesSel.add(f.nomeFuncao);
                                   } else {
                                     _funcoesSel.remove(f.nomeFuncao);
                                   }
                                 }),
-                              ))
-                          .toList(),
+                              );
+                            }).toList(),
+                          ),
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(color: AppColors.acento),
                     ),
-                    loading: () => const CircularProgressIndicator(),
-                    error: (_, __) => const SizedBox(),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                 ],
 
                 DropdownButtonFormField<String>(
-                  value: _escalaTrab,
-                  style: AppTextStyles.body(),
+                  initialValue: _escalaTrab,
+                  style: AppTextStyles.body(color: context.textoPrimario),
                   dropdownColor: context.bgCard,
                   decoration:
                       const InputDecoration(labelText: 'Escala de Trabalho'),
@@ -527,30 +768,55 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
                       .toList(),
                   onChanged: (v) => setState(() => _escalaTrab = v!),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
 
-                Text('Dias Indisponíveis', style: AppTextStyles.label()),
-                Column(
-                  children: _diasSemana
-                      .map((d) => CheckboxListTile(
-                            dense: true,
-                            value: _diasIndisp.contains(d),
-                            activeColor: AppColors.acento,
-                            title: Text(d, style: AppTextStyles.body()),
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                _diasIndisp.add(d);
-                              } else {
-                                _diasIndisp.remove(d);
-                              }
-                            }),
-                          ))
-                      .toList(),
+                Text(
+                  'Dias indisponíveis na semana',
+                  style: AppTextStyles.bodySmall(
+                    color: context.textoPrimario,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _diasSemana.map((d) {
+                    final sel = _diasIndisp.contains(d);
+                    return FilterChip(
+                      label: Text(
+                        d,
+                        style: AppTextStyles.bodySmall(
+                          color: sel ? Colors.white : context.textoPrimario,
+                          fontWeight:
+                              sel ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                      selected: sel,
+                      selectedColor: AppColors.perigo,
+                      backgroundColor: context.bgSubtle,
+                      checkmarkColor: Colors.white,
+                      side: BorderSide(
+                        color: sel ? AppColors.perigo : context.bgBorda,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onSelected: (v) => setState(() {
+                        if (v) {
+                          _diasIndisp.add(d);
+                        } else {
+                          _diasIndisp.remove(d);
+                        }
+                      }),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 28),
 
                 AppButton(
-                  label: 'Salvar',
+                  label: 'Salvar Integrante',
+                  icon: PhosphorIconsBold.check,
                   loading: _loading,
                   onPressed: _salvar,
                   width: double.infinity,
@@ -565,7 +831,7 @@ class _ModalMembroState extends ConsumerState<ModalMembro> {
 
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _loading = true);
     try {
       final dados = {

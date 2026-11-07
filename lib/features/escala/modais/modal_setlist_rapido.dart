@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/widgets/cifra_bottom_sheet.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -114,40 +113,71 @@ class _ModalSetlistRapidoState extends ConsumerState<ModalSetlistRapido> {
       expand: false,
       builder: (_, ctrl) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.bgCard,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: LoadingOverlay(
           loading: _loading,
           child: Column(
             children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.bgBorda,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Músicas do Culto\n${widget.dataCulto} às ${widget.horaCulto}${_calcularTempoTotal()}',
-                        style: AppTextStyles.subheading(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Músicas do Culto',
+                            style: AppTextStyles.heading(
+                              color: context.textoPrimario,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${widget.dataCulto} às ${widget.horaCulto}${_calcularTempoTotal()}',
+                            style: AppTextStyles.bodySmall(
+                              color: context.textoSecund,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(PhosphorIconsBold.plus, color: AppColors.acento),
-                      tooltip: 'Adicionar Música',
+                    ElevatedButton.icon(
                       onPressed: () => _addMusica(context),
+                      icon: const Icon(PhosphorIconsBold.plus, size: 16),
+                      label: const Text('Adicionar'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
+              Divider(height: 1, color: context.bgBorda),
               Expanded(
                 child: _lista.isEmpty
                     ? Center(
                         child: Text(
-                          'Nenhuma música adicionada.',
+                          'Nenhuma música adicionada ao culto.',
                           style: AppTextStyles.body(color: context.textoSecund),
                         ),
                       )
                     : ReorderableListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         onReorder: (o, n) {
                           setState(() {
                             final item = _lista.removeAt(o);
@@ -157,12 +187,38 @@ class _ModalSetlistRapidoState extends ConsumerState<ModalSetlistRapido> {
                         itemCount: _lista.length,
                         itemBuilder: (_, i) => ListTile(
                           key: ValueKey(_lista[i]['id_interno'] ?? 'id_$i'),
-                          leading: Text(
-                            '${i + 1}',
-                            style: AppTextStyles.mono(color: AppColors.acento),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 4,
                           ),
-                          title: Text(_lista[i]['titulo'] ?? '', style: AppTextStyles.body()),
-                          subtitle: Text(_lista[i]['artista'] ?? '', style: AppTextStyles.bodySmall()),
+                          leading: Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: context.acentoSuave,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${i + 1}',
+                              style: AppTextStyles.mono(
+                                color: context.acentoTexto,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            _lista[i]['titulo'] ?? '',
+                            style: AppTextStyles.body(
+                              color: context.textoPrimario,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            _lista[i]['artista'] ?? '',
+                            style: AppTextStyles.bodySmall(
+                              color: context.textoSecund,
+                            ),
+                          ),
                           onTap: () {
                             final link = _lista[i]['link']?.toString() ?? '';
                             final videoId = _extrairVideoId(link);
@@ -177,11 +233,32 @@ class _ModalSetlistRapidoState extends ConsumerState<ModalSetlistRapido> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (_lista[i]['tempo'] != null && _lista[i]['tempo'].toString().isNotEmpty)
-                                Text(_lista[i]['tempo'].toString(), style: AppTextStyles.monoSmall(color: context.textoSecund)),
+                              if (_lista[i]['tempo'] != null &&
+                                  _lista[i]['tempo'].toString().isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: context.bgSubtle,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    _lista[i]['tempo'].toString(),
+                                    style: AppTextStyles.monoSmall(
+                                      color: context.textoSecund,
+                                    ),
+                                  ),
+                                ),
                               IconButton(
-                                icon: Icon(Icons.close, color: context.textoSecund, size: 18),
-                                onPressed: () => setState(() => _lista.removeAt(i)),
+                                icon: Icon(
+                                  PhosphorIconsBold.trash,
+                                  color: AppColors.perigo.withValues(alpha: 0.8),
+                                  size: 18,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _lista.removeAt(i)),
                               ),
                             ],
                           ),
@@ -191,7 +268,7 @@ class _ModalSetlistRapidoState extends ConsumerState<ModalSetlistRapido> {
               SafeArea(
                 bottom: true,
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                   child: AppButton(
                     label: 'Salvar Músicas',
                     loading: _loading,

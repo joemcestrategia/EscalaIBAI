@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onInitializationComplete;
@@ -14,7 +15,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -36,27 +38,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1100),
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
       ),
     );
 
     _animationController.forward();
 
-    // Rotacionar mensagens a cada 1.2 segundos
-    _messageTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) {
+    // Rotacionar mensagens suavemente
+    _messageTimer = Timer.periodic(const Duration(milliseconds: 1100), (timer) {
       if (mounted) {
         setState(() {
           _messageIndex = (_messageIndex + 1) % _messages.length;
@@ -64,11 +66,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       }
     });
 
-    // Tempo mínimo de Splash: 4 segundos
-    _navigationTimer = Timer(const Duration(milliseconds: 4000), () {
+    // Tempo de entrada ágil e fluido
+    _navigationTimer = Timer(const Duration(milliseconds: 2400), () {
       widget.onInitializationComplete();
     });
-
   }
 
   @override
@@ -82,83 +83,74 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A), // Slate 900 (Escuro Premium)
-              Color(0xFF1E293B), // Slate 800
-              Color(0xFF0F172A), // Slate 900
-            ],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Elemento decorativo de fundo (Luz suave)
-            Positioned(
-              top: -100,
-              right: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.05),
-                      blurRadius: 100,
-                      spreadRadius: 50,
-                    ),
-                  ],
-                ),
+      backgroundColor: context.bgPrincipal,
+      body: Stack(
+        children: [
+          // Brilho Safira suave ao fundo
+          Positioned(
+            top: -90,
+            right: -90,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: context.corPrimaria.withValues(alpha: 0.10),
+                    blurRadius: 110,
+                    spreadRadius: 40,
+                  ),
+                ],
               ),
             ),
-            
-            // Conteúdo Principal
-            Center(
-              child: AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) {
-                  return FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: child,
-                    ),
-                  );
-                },
+          ),
+
+          // Conteúdo Principal
+          Center(
+            child: AnimatedBuilder(
+              animation: _animationController,
+              builder: (context, child) {
+                return FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: child,
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Ícone do App
                     Container(
-                      width: 120,
-                      height: 120,
+                      width: 112,
+                      height: 112,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            spreadRadius: 5,
+                            color: context.corPrimaria.withValues(alpha: 0.22),
+                            blurRadius: 28,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(28),
                         child: Image.asset(
                           'assets/icons/app_icon.png',
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            // Fallback caso a imagem não carregue
                             return Container(
-                              color: const Color(0xFF1E293B),
+                              decoration: BoxDecoration(
+                                gradient: context.heroGradient,
+                              ),
                               child: const Icon(
-                                Icons.church,
-                                size: 60,
-                                color: Color(0xFFD4AF37),
+                                Icons.church_rounded,
+                                size: 54,
+                                color: Colors.white,
                               ),
                             );
                           },
@@ -166,55 +158,41 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
-                    // Nome do App
                     Text(
-                      'Escala',
-                      style: GoogleFonts.outfit(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 2,
-                      ),
+                      'Escala IBAI',
+                      style: AppTextStyles.display(color: context.textoPrimario)
+                          .copyWith(fontSize: 32),
                     ),
-                    const SizedBox(height: 8),
-                    
-                    // Subtexto Cristão
+                    const SizedBox(height: 6),
                     Text(
                       'Servindo ao Reino com Excelência',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: const Color(0xFF94A3B8),
-                        letterSpacing: 1,
-                      ),
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.body(color: context.textoSecund),
                     ),
-                    const SizedBox(height: 48),
-                    
-                    // Loader e Mensagens
+                    const SizedBox(height: 40),
                     SizedBox(
-                      width: 200,
+                      width: 240,
                       child: Column(
                         children: [
-                          const SizedBox(
-                            height: 2,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
                             child: LinearProgressIndicator(
-                              backgroundColor: Color(0xFF334155),
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)),
+                              minHeight: 4,
+                              backgroundColor: context.bgBorda,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                context.corPrimaria,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          
-                          // Mensagens Rotativas com Shimmer para efeito visual
                           AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
+                            duration: const Duration(milliseconds: 280),
                             child: Text(
                               _messages[_messageIndex],
                               key: ValueKey<int>(_messageIndex),
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: const Color(0xFFCBD5E1),
-                                fontStyle: FontStyle.italic,
+                              style: AppTextStyles.bodySmall(
+                                color: context.textoSecund,
                               ),
                             ),
                           ),
@@ -225,40 +203,34 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
             ),
-            
-            // Créditos no Rodapé
-            Positioned(
-              bottom: 32 + MediaQuery.of(context).padding.bottom,
-              left: 0,
-              right: 0,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    Text(
-                      'Desenvolvido por',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: const Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
+          ),
+
+          // Créditos no Rodapé
+          Positioned(
+            bottom: 28 + MediaQuery.of(context).padding.bottom,
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Column(
+                children: [
+                  Text(
+                    'Desenvolvido por',
+                    style: AppTextStyles.label(color: context.textoMuted),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Dionathan Iannini',
+                    style: AppTextStyles.bodySmall(
+                      color: context.textoPrimario,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Dionathan Iannini',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFE2E8F0),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

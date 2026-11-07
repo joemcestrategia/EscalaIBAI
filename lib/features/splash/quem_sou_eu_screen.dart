@@ -6,6 +6,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/push_notification_service.dart';
+import '../../shared/widgets/app_widgets.dart';
 
 class QuemSouEuScreen extends ConsumerStatefulWidget {
   final VoidCallback onMemberSelected;
@@ -32,20 +33,24 @@ class _QuemSouEuScreenState extends ConsumerState<QuemSouEuScreen> {
     final canPop = Navigator.canPop(context);
 
     return Scaffold(
+      backgroundColor: context.bgPrincipal,
       appBar: AppBar(
         title: Text(
           'Quem é você?',
-          style: AppTextStyles.heading(color: Colors.white).copyWith(fontSize: 20),
+          style: AppTextStyles.heading(color: context.textoPrimario),
         ),
-        backgroundColor: const Color(0xFF0F172A),
-        elevation: 0,
         automaticallyImplyLeading: canPop,
         leading: canPop
             ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                icon: Icon(
+                  PhosphorIconsBold.arrowLeft,
+                  color: context.textoPrimario,
+                ),
                 onPressed: () {
                   if (!widget.isReconfiguration) {
-                    ref.read(sharedPreferencesProvider).remove('has_selected_role');
+                    ref
+                        .read(sharedPreferencesProvider)
+                        .remove('has_selected_role');
                     ref.read(sharedPreferencesProvider).remove('user_role');
                   }
                   Navigator.pop(context);
@@ -53,153 +58,137 @@ class _QuemSouEuScreenState extends ConsumerState<QuemSouEuScreen> {
               )
             : null,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Text(
-                  'Selecione seu nome para receber apenas as suas notificações pessoais de escala e jejum:',
-                  style: AppTextStyles.bodySmall(color: Colors.white70),
-                ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+              child: Text(
+                'Selecione seu nome para receber lembretes pessoais da sua escala e jejum:',
+                style: AppTextStyles.body(color: context.textoSecund),
               ),
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: TextField(
-                  style: AppTextStyles.body(color: Colors.white),
-                  onChanged: (val) => setState(() => _busca = val.toLowerCase()),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar seu nome...',
-                    hintStyle: AppTextStyles.body(color: Colors.white54),
-                    prefixIcon: const Icon(
-                      PhosphorIconsRegular.magnifyingGlass,
-                      color: Colors.white54,
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B).withValues(alpha: 0.8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                style: AppTextStyles.body(color: context.textoPrimario),
+                onChanged: (val) => setState(() => _busca = val.toLowerCase()),
+                decoration: InputDecoration(
+                  hintText: 'Buscar seu nome...',
+                  prefixIcon: Icon(
+                    PhosphorIconsRegular.magnifyingGlass,
+                    color: context.textoSecund,
                   ),
                 ),
               ),
-              Expanded(
-                child: membrosAsync.when(
-                  data: (membros) {
-                    final filtrados = membros
-                        .where((m) => m.nome.toLowerCase().contains(_busca))
-                        .toList();
-                    filtrados.sort((a, b) => a.nome.compareTo(b.nome));
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: membrosAsync.when(
+                data: (membros) {
+                  final filtrados = membros
+                      .where((m) => m.nome.toLowerCase().contains(_busca))
+                      .toList();
+                  filtrados.sort((a, b) => a.nome.compareTo(b.nome));
 
-                    if (filtrados.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'Nenhum membro encontrado.',
-                          style: AppTextStyles.body(color: Colors.white54),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
+                  if (filtrados.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Nenhum membro encontrado.',
+                        style: AppTextStyles.body(color: context.textoSecund),
                       ),
-                      itemCount: filtrados.length,
-                      itemBuilder: (ctx, i) {
-                        final membro = filtrados[i];
-                        return Card(
-                          color: const Color(0xFF1E293B).withValues(alpha: 0.6),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: context.bgBorda.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  AppColors.acento.withValues(alpha: 0.2),
-                              child: Text(
-                                membro.nome.substring(0, 1).toUpperCase(),
-                                style: const TextStyle(
-                                  color: AppColors.acento,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+                    itemCount: filtrados.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (ctx, i) {
+                      final membro = filtrados[i];
+                      return AppSurfaceCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        onTap: () async {
+                          await ref.read(userRoleProvider.notifier).setRole(
+                                widget.role,
+                                membroId: membro.id,
+                                membroNome: membro.nome,
+                              );
+
+                          // Registra token FCM e agenda notificações pessoais deste membro
+                          PushNotificationService.registerAndSaveToken(
+                            membro.id,
+                          );
+                          ref.invalidate(
+                            compromissosDoMembroProvider(membro.nome),
+                          );
+                          ref
+                              .read(escalaRepoProvider)
+                              .getByMembro(membro.nome)
+                              .then((itens) {
+                            NotificationService.agendarNotificacoesEscala(
+                              itens,
+                            );
+                          });
+
+                          widget.onMemberSelected();
+                          if (context.mounted && Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            AppAvatar(name: membro.nome, size: 46),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    membro.nome,
+                                    style: AppTextStyles.subheading(
+                                      color: ctx.textoPrimario,
+                                    ),
+                                  ),
+                                  if (membro.ministerio.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      membro.ministerio,
+                                      style: AppTextStyles.bodySmall(
+                                        color: ctx.textoSecund,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            title: Text(
-                              membro.nome,
-                              style: AppTextStyles.subheading(color: Colors.white),
+                            Icon(
+                              PhosphorIconsBold.caretRight,
+                              color: ctx.textoMuted,
+                              size: 18,
                             ),
-                            subtitle: Text(
-                              membro.ministerio,
-                              style: AppTextStyles.bodySmall(color: Colors.white54),
-                            ),
-                            trailing: const Icon(
-                              PhosphorIconsRegular.caretRight,
-                              color: Colors.white54,
-                            ),
-                            onTap: () async {
-                              await ref.read(userRoleProvider.notifier).setRole(
-                                    widget.role,
-                                    membroId: membro.id,
-                                    membroNome: membro.nome,
-                                  );
-
-                              // Registra token FCM e agenda notificações pessoais deste membro
-                              PushNotificationService.registerAndSaveToken(
-                                membro.id,
-                              );
-                              ref.invalidate(
-                                compromissosDoMembroProvider(membro.nome),
-                              );
-                              ref
-                                  .read(escalaRepoProvider)
-                                  .getByMembro(membro.nome)
-                                  .then((itens) {
-                                NotificationService.agendarNotificacoesEscala(
-                                  itens,
-                                );
-                              });
-
-                              widget.onMemberSelected();
-                              if (context.mounted && Navigator.canPop(context)) {
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(color: AppColors.acento),
-                  ),
-                  error: (err, stack) => Center(
-                    child: Text(
-                      'Erro ao carregar membros',
-                      style: AppTextStyles.body(color: Colors.red),
-                    ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: context.corPrimaria),
+                ),
+                error: (err, stack) => Center(
+                  child: Text(
+                    'Erro ao carregar membros',
+                    style: AppTextStyles.body(color: AppColors.perigo),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

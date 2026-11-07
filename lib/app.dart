@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_text_styles.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/app_providers.dart';
 import 'features/home/home_screen.dart';
@@ -84,6 +86,22 @@ class _IgrejaAdminAppState extends ConsumerState<IgrejaAdminApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor:
+                isDark ? AppColors.bgCard : AppColors.bgCardLight,
+            systemNavigationBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: homeWidget,
     );
   }
@@ -170,58 +188,58 @@ class _MainShellState extends ConsumerState<_MainShell> {
     final destinations = [
       const NavigationDestination(
         icon: Icon(PhosphorIconsRegular.house),
-        selectedIcon: Icon(PhosphorIconsBold.house),
+        selectedIcon: Icon(PhosphorIconsFill.house),
         label: 'Início',
       ),
       NavigationDestination(
-        icon: const Icon(PhosphorIconsRegular.calendar),
-        selectedIcon: const Icon(PhosphorIconsBold.calendar),
-        label: isMembro ? 'Minha Escala' : 'Escala',
+        icon: const Icon(PhosphorIconsRegular.calendarBlank),
+        selectedIcon: const Icon(PhosphorIconsFill.calendarBlank),
+        label: isMembro ? 'Escala' : 'Escala',
       ),
       const NavigationDestination(
-        icon: Icon(PhosphorIconsRegular.musicNote),
-        selectedIcon: Icon(PhosphorIconsBold.musicNote),
+        icon: Icon(PhosphorIconsRegular.musicNotes),
+        selectedIcon: Icon(PhosphorIconsFill.musicNotes),
         label: 'Músicas',
       ),
       if (!isMembro)
         const NavigationDestination(
           icon: Icon(PhosphorIconsRegular.users),
-          selectedIcon: Icon(PhosphorIconsBold.users),
-          label: 'Membros',
+          selectedIcon: Icon(PhosphorIconsFill.users),
+          label: 'Equipe',
         ),
       const NavigationDestination(
-        icon: Icon(PhosphorIconsRegular.gear),
-        selectedIcon: Icon(PhosphorIconsBold.gear),
-        label: 'Config',
+        icon: Icon(PhosphorIconsRegular.gearSix),
+        selectedIcon: Icon(PhosphorIconsFill.gearSix),
+        label: 'Ajustes',
       ),
     ];
 
     final railDestinations = [
       const NavigationRailDestination(
         icon: Icon(PhosphorIconsRegular.house),
-        selectedIcon: Icon(PhosphorIconsBold.house),
+        selectedIcon: Icon(PhosphorIconsFill.house),
         label: Text('Início'),
       ),
-      NavigationRailDestination(
-        icon: const Icon(PhosphorIconsRegular.calendar),
-        selectedIcon: const Icon(PhosphorIconsBold.calendar),
-        label: Text(isMembro ? 'Minha Escala' : 'Escala'),
+      const NavigationRailDestination(
+        icon: Icon(PhosphorIconsRegular.calendarBlank),
+        selectedIcon: Icon(PhosphorIconsFill.calendarBlank),
+        label: Text('Escala'),
       ),
       const NavigationRailDestination(
-        icon: Icon(PhosphorIconsRegular.musicNote),
-        selectedIcon: Icon(PhosphorIconsBold.musicNote),
+        icon: Icon(PhosphorIconsRegular.musicNotes),
+        selectedIcon: Icon(PhosphorIconsFill.musicNotes),
         label: Text('Músicas'),
       ),
       if (!isMembro)
         const NavigationRailDestination(
           icon: Icon(PhosphorIconsRegular.users),
-          selectedIcon: Icon(PhosphorIconsBold.users),
-          label: Text('Membros'),
+          selectedIcon: Icon(PhosphorIconsFill.users),
+          label: Text('Equipe'),
         ),
       const NavigationRailDestination(
-        icon: Icon(PhosphorIconsRegular.gear),
-        selectedIcon: Icon(PhosphorIconsBold.gear),
-        label: Text('Config'),
+        icon: Icon(PhosphorIconsRegular.gearSix),
+        selectedIcon: Icon(PhosphorIconsFill.gearSix),
+        label: Text('Ajustes'),
       ),
     ];
 
@@ -229,79 +247,93 @@ class _MainShellState extends ConsumerState<_MainShell> {
       _idx = screens.length - 1;
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 900) {
-          // Layout Desktop
-          return Scaffold(
-            body: Row(
-              children: [
-                NavigationRail(
-                  selectedIndex: _idx,
-                  onDestinationSelected: (i) => setState(() => _idx = i),
-                  extended: true,
-                  minExtendedWidth: 160,
-                  destinations: railDestinations,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  indicatorColor: AppColors.acento.withValues(alpha: 0.2),
-                  selectedLabelTextStyle: const TextStyle(
-                      color: AppColors.acento, fontWeight: FontWeight.bold),
-                  unselectedLabelTextStyle: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7)),
-                  selectedIconTheme:
-                      const IconThemeData(color: AppColors.acento),
-                  unselectedIconTheme: IconThemeData(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7)),
-                ),
-                const VerticalDivider(
-                    thickness: 1, width: 1, color: AppColors.bgBorda),
-                Container(
-                  width: 350,
-                  decoration: const BoxDecoration(
-                    border: Border(right: BorderSide(color: AppColors.bgBorda)),
+    return AppNavigation(
+      go: (i) => setState(() => _idx = i),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 900) {
+            // Layout Desktop
+            return Scaffold(
+              body: Row(
+                children: [
+                  NavigationRail(
+                    selectedIndex: _idx,
+                    onDestinationSelected: (i) => setState(() => _idx = i),
+                    extended: true,
+                    minExtendedWidth: 180,
+                    destinations: railDestinations,
+                    backgroundColor: context.bgCard,
+                    indicatorColor: context.acentoSuave,
+                    selectedLabelTextStyle: AppTextStyles.bodySmall(
+                      color: context.corPrimaria,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    unselectedLabelTextStyle: AppTextStyles.bodySmall(
+                      color: context.textoSecund,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    selectedIconTheme:
+                        IconThemeData(color: context.corPrimaria, size: 22),
+                    unselectedIconTheme:
+                        IconThemeData(color: context.textoSecund, size: 22),
                   ),
-                  child: const Scaffold(
-                    body: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: HomeCalendarWeb(),
+                  VerticalDivider(
+                      thickness: 1, width: 1, color: context.bgBorda),
+                  Container(
+                    width: 360,
+                    decoration: BoxDecoration(
+                      color: context.bgCard,
+                      border: Border(right: BorderSide(color: context.bgBorda)),
+                    ),
+                    child: Scaffold(
+                      backgroundColor: context.bgCard,
+                      body: const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: HomeCalendarWeb(),
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: IndexedStack(
-                    index: _idx,
-                    children: screens,
+                  Expanded(
+                    child: IndexedStack(
+                      index: _idx,
+                      children: screens,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            );
+          }
+
+          // Layout Mobile
+          return Scaffold(
+            body: IndexedStack(
+              index: _idx,
+              children: screens,
+            ),
+            bottomNavigationBar: Container(
+              decoration: BoxDecoration(
+                color: context.bgCard,
+                border: Border(top: BorderSide(color: context.bgBorda)),
+                boxShadow: context.isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color:
+                              const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
+              ),
+              child: NavigationBar(
+                selectedIndex: _idx,
+                onDestinationSelected: (i) => setState(() => _idx = i),
+                destinations: destinations,
+              ),
             ),
           );
-        }
-
-        // Layout Mobile
-        return Scaffold(
-          body: IndexedStack(
-            index: _idx,
-            children: screens,
-          ),
-          bottomNavigationBar: Container(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.bgBorda)),
-            ),
-            child: NavigationBar(
-              selectedIndex: _idx,
-              onDestinationSelected: (i) => setState(() => _idx = i),
-              destinations: destinations,
-            ),
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }

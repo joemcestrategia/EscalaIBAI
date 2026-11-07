@@ -53,14 +53,14 @@ class _MusicasScreenState extends ConsumerState<MusicasScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: context.bgPrincipal,
       appBar: AppBar(
-        title: Text('Músicas', style: AppTextStyles.heading()),
-        bottom: TabBar(
+        title: Text(
+          'Músicas',
+          style: AppTextStyles.heading(color: context.textoPrimario),
+        ),
+        bottom: AppSegmentedTabBar(
           controller: _tab,
-          indicatorColor: AppColors.acento,
-          labelColor: AppColors.acento,
-          unselectedLabelColor: context.textoSecund,
           tabs: const [
             Tab(text: 'Catálogo'),
             Tab(text: 'Repertórios'),
@@ -77,9 +77,13 @@ class _MusicasScreenState extends ConsumerState<MusicasScreen>
       floatingActionButton: AnimatedBuilder(
         animation: _tab,
         builder: (_, __) => _tab.index == 0
-            ? FloatingActionButton(
+            ? FloatingActionButton.extended(
                 onPressed: () => _addMusica(context),
-                child: const Icon(PhosphorIconsBold.plus),
+                icon: const Icon(PhosphorIconsBold.plus, size: 18),
+                label: Text(
+                  'Nova Música',
+                  style: AppTextStyles.button(color: Colors.white),
+                ),
               )
             : const SizedBox(),
       ),
@@ -132,24 +136,30 @@ class _CatalogoTab extends ConsumerWidget {
                 .toList();
 
         return RefreshIndicator(
-          color: AppColors.acento,
+          color: context.corPrimaria,
           backgroundColor: context.bgCard,
           onRefresh: () async => ref.invalidate(musicasProvider),
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: TextField(
                   controller: busca,
-                  style: AppTextStyles.body(),
+                  style: AppTextStyles.body(color: context.textoPrimario),
                   decoration: InputDecoration(
-                    hintText: 'Buscar músicas...',
-                    prefixIcon: Icon(PhosphorIconsBold.magnifyingGlass,
-                        color: context.textoSecund, size: 18),
+                    hintText: 'Buscar música ou cantor...',
+                    prefixIcon: Icon(
+                      PhosphorIconsBold.magnifyingGlass,
+                      color: context.textoSecund,
+                      size: 20,
+                    ),
                     suffixIcon: busca.text.isNotEmpty
                         ? IconButton(
-                            icon: Icon(Icons.clear,
-                                color: context.textoSecund, size: 18),
+                            icon: Icon(
+                              Icons.clear_rounded,
+                              color: context.textoSecund,
+                              size: 20,
+                            ),
                             onPressed: () => busca.clear(),
                           )
                         : null,
@@ -157,40 +167,47 @@ class _CatalogoTab extends ConsumerWidget {
                 ),
               ),
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: filtrada.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, indent: 16, endIndent: 16),
-                  itemBuilder: (_, i) => _MusicaTile(
-                    musica: filtrada[i],
-                    onEdit: () async {
-                      final ok = await showModalBottomSheet<bool>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => _ModalEditMusica(musica: filtrada[i]),
-                      );
-                      if (ok == true && context.mounted) {
-                        ref.invalidate(musicasProvider);
-                      }
-                    },
-                    onDelete: () async {
-                      final ok = await ConfirmDialog.show(
-                        context,
-                        titulo: 'Excluir',
-                        mensagem: 'Excluir "${filtrada[i].titulo}"?',
-                        labelConfirmar: 'Excluir',
-                        perigo: true,
-                      );
-                      if (ok) {
-                        await ref
-                            .read(musicasRepoProvider)
-                            .excluir(filtrada[i].id);
-                        ref.invalidate(musicasProvider);
-                      }
-                    },
-                  ),
-                ),
+                child: filtrada.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Nenhuma música encontrada.',
+                          style: AppTextStyles.body(color: context.textoSecund),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                        itemCount: filtrada.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _MusicaTile(
+                          musica: filtrada[i],
+                          onEdit: () async {
+                            final ok = await showModalBottomSheet<bool>(
+                              context: context,
+                              isScrollControlled: true,
+                              builder: (_) =>
+                                  _ModalEditMusica(musica: filtrada[i]),
+                            );
+                            if (ok == true && context.mounted) {
+                              ref.invalidate(musicasProvider);
+                            }
+                          },
+                          onDelete: () async {
+                            final ok = await ConfirmDialog.show(
+                              context,
+                              titulo: 'Excluir',
+                              mensagem: 'Excluir "${filtrada[i].titulo}"?',
+                              labelConfirmar: 'Excluir',
+                              perigo: true,
+                            );
+                            if (ok) {
+                              await ref
+                                  .read(musicasRepoProvider)
+                                  .excluir(filtrada[i].id);
+                              ref.invalidate(musicasProvider);
+                            }
+                          },
+                        ),
+                      ),
               ),
             ],
           ),
@@ -217,68 +234,121 @@ class _MusicaTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Slidable(
-      endActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        children: [
-          SlidableAction(
-            onPressed: (_) => onEdit(),
-            backgroundColor: AppColors.acento,
-            foregroundColor: Colors.white,
-            icon: PhosphorIconsBold.pencil,
-            label: 'Editar',
-          ),
-          SlidableAction(
-            onPressed: (_) => onDelete(),
-            backgroundColor: AppColors.perigo,
-            foregroundColor: Colors.white,
-            icon: PhosphorIconsBold.trash,
-            label: 'Excluir',
-            borderRadius:
-                const BorderRadius.horizontal(right: Radius.circular(12)),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.acento.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(PhosphorIconsBold.musicNote,
-              color: AppColors.acento, size: 18),
+    void abrirCifra() {
+      final videoId = LetrasUtils.extrairVideoId(musica.linkYoutube);
+      CifraBottomSheet.mostrar(
+        context,
+        titulo: musica.titulo,
+        artista: musica.artista,
+        videoId: videoId,
+        linkYoutube: musica.linkYoutube.isNotEmpty ? musica.linkYoutube : null,
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Slidable(
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          children: [
+            SlidableAction(
+              onPressed: (_) => onEdit(),
+              backgroundColor: AppColors.acento,
+              foregroundColor: Colors.white,
+              icon: PhosphorIconsBold.pencilSimple,
+              label: 'Editar',
+            ),
+            SlidableAction(
+              onPressed: (_) => onDelete(),
+              backgroundColor: AppColors.perigo,
+              foregroundColor: Colors.white,
+              icon: PhosphorIconsBold.trash,
+              label: 'Excluir',
+            ),
+          ],
         ),
-        title: Text(musica.titulo, style: AppTextStyles.body()),
-        subtitle: Text('${musica.artista}${musica.tempo.isNotEmpty ? ' • ${musica.tempo}' : ''}', style: AppTextStyles.bodySmall()),
-        onTap: () {
-          final videoId = LetrasUtils.extrairVideoId(musica.linkYoutube);
-          CifraBottomSheet.mostrar(
-            context,
-            titulo: musica.titulo,
-            artista: musica.artista,
-            videoId: videoId,
-            linkYoutube:
-                musica.linkYoutube.isNotEmpty ? musica.linkYoutube : null,
-          );
-        },
-        trailing: IconButton(
-          icon: Icon(
-            PhosphorIconsBold.youtubeLogo,
-            color: musica.linkYoutube.isNotEmpty ? AppColors.perigo : context.textoSecund,
-            size: 22,
+        child: AppSurfaceCard(
+          onTap: abrirCifra,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: context.acentoSuave,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  PhosphorIconsFill.musicNotes,
+                  color: context.acentoTexto,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      musica.titulo,
+                      style: AppTextStyles.subheading(
+                        color: context.textoPrimario,
+                      ).copyWith(fontSize: 16.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${musica.artista}${musica.tempo.isNotEmpty ? ' • ${musica.tempo}' : ''}',
+                      style: AppTextStyles.bodySmall(
+                        color: context.textoSecund,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: context.bgSubtle,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Cifra',
+                  style: AppTextStyles.label(color: context.textoPrimario),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  PhosphorIconsFill.youtubeLogo,
+                  color: musica.linkYoutube.isNotEmpty
+                      ? AppColors.perigo
+                      : context.textoMuted,
+                  size: 24,
+                ),
+                onPressed: () async {
+                  if (musica.linkYoutube.isNotEmpty) {
+                    final uri = Uri.parse(musica.linkYoutube);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri);
+                  } else {
+                    final query = Uri.encodeComponent(
+                        '${musica.titulo} ${musica.artista}');
+                    final uri = Uri.parse(
+                        'https://www.youtube.com/results?search_query=$query');
+                    if (await canLaunchUrl(uri)) await launchUrl(uri);
+                  }
+                },
+              ),
+            ],
           ),
-          onPressed: () async {
-            if (musica.linkYoutube.isNotEmpty) {
-              final uri = Uri.parse(musica.linkYoutube);
-              if (await canLaunchUrl(uri)) await launchUrl(uri);
-            } else {
-              final query = Uri.encodeComponent('${musica.titulo} ${musica.artista}');
-              final uri = Uri.parse('https://www.youtube.com/results?search_query=$query');
-              if (await canLaunchUrl(uri)) await launchUrl(uri);
-            }
-          },
         ),
       ),
     );
@@ -329,40 +399,64 @@ class _RepertoriosTabState extends ConsumerState<_RepertoriosTab> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
                   ChoiceChip(
-                    label: const Text('Atuais e Futuros'),
+                    label: const Text('Próximos Cultos'),
                     selected: _filtro == 'futuros',
                     onSelected: (val) => setState(() => _filtro = 'futuros'),
-                    selectedColor: AppColors.acento.withValues(alpha: 0.2),
-                    labelStyle: TextStyle(
-                      color: _filtro == 'futuros' ? AppColors.acento : context.textoSecund,
-                      fontWeight: _filtro == 'futuros' ? FontWeight.bold : FontWeight.normal,
+                    selectedColor: AppColors.acento,
+                    backgroundColor: context.bgSubtle,
+                    checkmarkColor: Colors.white,
+                    labelStyle: AppTextStyles.bodySmall(
+                      color: _filtro == 'futuros'
+                          ? Colors.white
+                          : context.textoSecund,
+                      fontWeight: _filtro == 'futuros'
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                     ),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: BorderSide(
+                      color: _filtro == 'futuros'
+                          ? AppColors.acento
+                          : context.bgBorda,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   ChoiceChip(
-                    label: const Text('Passados'),
+                    label: const Text('Anteriores'),
                     selected: _filtro == 'passados',
                     onSelected: (val) => setState(() => _filtro = 'passados'),
-                    selectedColor: AppColors.acento.withValues(alpha: 0.2),
-                    labelStyle: TextStyle(
-                      color: _filtro == 'passados' ? AppColors.acento : context.textoSecund,
-                      fontWeight: _filtro == 'passados' ? FontWeight.bold : FontWeight.normal,
+                    selectedColor: AppColors.acento,
+                    backgroundColor: context.bgSubtle,
+                    checkmarkColor: Colors.white,
+                    labelStyle: AppTextStyles.bodySmall(
+                      color: _filtro == 'passados'
+                          ? Colors.white
+                          : context.textoSecund,
+                      fontWeight: _filtro == 'passados'
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                     ),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: BorderSide(
+                      color: _filtro == 'passados'
+                          ? AppColors.acento
+                          : context.bgBorda,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ],
               ),
             ),
             Expanded(
               child: RefreshIndicator(
-                color: AppColors.acento,
+                color: context.corPrimaria,
                 backgroundColor: context.bgCard,
                 onRefresh: () async => ref.invalidate(repertoriosProvider),
                 child: listaFiltrada.isEmpty
@@ -370,25 +464,34 @@ class _RepertoriosTabState extends ConsumerState<_RepertoriosTab> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(PhosphorIconsBold.musicNotes, color: AppColors.textoMuted, size: 48),
+                            Icon(
+                              PhosphorIconsRegular.playlist,
+                              color: context.textoMuted,
+                              size: 48,
+                            ),
                             const SizedBox(height: 12),
-                            Text('Nenhum repertório $_filtro encontrado.',
-                                style: const TextStyle(color: AppColors.textoMuted)),
+                            Text(
+                              'Nenhum repertório encontrado.',
+                              style:
+                                  AppTextStyles.body(color: context.textoSecund),
+                            ),
                           ],
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                         itemCount: listaFiltrada.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (_, i) {
                           final rep = listaFiltrada[i];
-                          String tituloCulto = 'Repertório Sem Título';
+                          String tituloCulto = 'Culto Programado';
                           final d = DateTime.parse(rep.dataCulto);
                           final w = d.weekday == 7 ? 0 : d.weekday;
-                          
+
                           try {
-                            final match = agenda.firstWhere((ag) => ag.diaSemana == w && ag.horario == rep.horaCulto);
+                            final match = agenda.firstWhere((ag) =>
+                                ag.diaSemana == w &&
+                                ag.horario == rep.horaCulto);
                             tituloCulto = match.titulo;
                           } catch (_) {}
 
@@ -429,35 +532,54 @@ class _RepertorioTile extends StatelessWidget {
     final date = DateTime.parse(rep.dataCulto);
     final dataFmt = DateFormat('dd/MM/yyyy (EEEE)', 'pt_BR').format(date);
 
-    return GestureDetector(
+    return AppSurfaceCard(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          const Icon(PhosphorIconsBold.musicNotes,
-              color: AppColors.acentoAzul, size: 24),
-          const SizedBox(width: 12),
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: context.acentoSuave,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              PhosphorIconsFill.playlist,
+              color: context.acentoTexto,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(titulo, style: AppTextStyles.body(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text('$dataFmt às ${rep.horaCulto}', style: AppTextStyles.monoSmall(color: context.textoSecund)),
-                const SizedBox(height: 4),
-                Text('${rep.listaMusicas.length} música(s)',
-                    style: AppTextStyles.label(color: AppColors.acento)),
+                Text(
+                  titulo,
+                  style: AppTextStyles.subheading(color: context.textoPrimario),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$dataFmt às ${rep.horaCulto}',
+                  style: AppTextStyles.bodySmall(color: context.textoSecund),
+                ),
               ],
             ),
           ),
-          const Icon(PhosphorIconsBold.caretRight,
-              color: AppColors.textoMuted, size: 16),
-        ]),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: context.acentoSuave,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${rep.listaMusicas.length} mús.',
+              style: AppTextStyles.label(color: context.acentoTexto),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1008,13 +1130,15 @@ class _StatusCifraCard extends StatelessWidget {
                 return ChoiceChip(
                   label: Text(
                     '${op.titulo} (${op.artista})',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: selecionado ? Colors.white : context.textoSecund,
+                    style: AppTextStyles.bodySmall(
+                      color: selecionado ? Colors.white : context.textoPrimario,
+                      fontWeight:
+                          selecionado ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                   selected: selecionado,
                   selectedColor: AppColors.acento,
+                  checkmarkColor: Colors.white,
                   onSelected: (_) => onSelecionarOpcao(op),
                 );
               }).toList(),

@@ -3,15 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/escala_item.dart';
 import '../../core/models/repertorio.dart';
 import '../../core/models/agenda_item.dart';
-
 import '../../core/services/whatsapp_service.dart';
 import '../../shared/widgets/app_widgets.dart';
 import 'modais/modal_add_escala.dart';
@@ -36,13 +35,10 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     final escalaAsync = ref.watch(escalaDoMesProvider);
     final agendaAsync = ref.watch(agendaProvider);
 
-    final tabBar = TabBar(
-      indicatorColor: AppColors.acento,
-      labelColor: AppColors.acento,
-      unselectedLabelColor: context.textoSecund,
-      tabs: const [
-        Tab(text: 'Ministério'),
-        Tab(text: 'Jejum'),
+    const segmentedTabs = AppSegmentedTabBar(
+      tabs: [
+        Tab(text: 'Ministérios'),
+        Tab(text: 'Escala de Jejum'),
       ],
     );
 
@@ -54,11 +50,19 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
             _buildAbaEscala(lista, agenda, true),
           ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.acento)),
-        error: (e, _) => Center(child: Text('Erro: $e', style: AppTextStyles.body())),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.corPrimaria),
+        ),
+        error: (e, _) => Center(
+          child: Text('Erro: $e', style: AppTextStyles.body()),
+        ),
       ),
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.acento)),
-      error: (e, _) => Center(child: Text('Erro: $e', style: AppTextStyles.body())),
+      loading: () => Center(
+        child: CircularProgressIndicator(color: context.corPrimaria),
+      ),
+      error: (e, _) => Center(
+        child: Text('Erro: $e', style: AppTextStyles.body()),
+      ),
     );
 
     if (widget.hideAppBar) {
@@ -67,8 +71,9 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
         child: Column(
           children: [
             Container(
-              color: Theme.of(context).appBarTheme.backgroundColor ?? const Color(0xFF0F172A),
-              child: tabBar,
+              color: context.bgPrincipal,
+              padding: const EdgeInsets.only(top: 6),
+              child: segmentedTabs,
             ),
             Expanded(child: bodyContent),
           ],
@@ -79,26 +84,39 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: context.bgPrincipal,
         appBar: AppBar(
-          title: Text('Escala', style: AppTextStyles.heading()),
+          title: Text(
+            'Escala',
+            style: AppTextStyles.heading(color: context.textoPrimario),
+          ),
           actions: [
             IconButton(
-              icon: const Icon(PhosphorIconsBold.magnifyingGlass, color: AppColors.acento),
+              icon: Icon(
+                PhosphorIconsBold.magnifyingGlass,
+                color: context.textoPrimario,
+              ),
               tooltip: 'Pesquisar Membro',
               onPressed: () => _pesquisarMembro(context),
             ),
             IconButton(
-              icon: const Icon(PhosphorIconsBold.whatsappLogo, color: AppColors.acento),
+              icon: const Icon(
+                PhosphorIconsBold.whatsappLogo,
+                color: AppColors.sucesso,
+              ),
               tooltip: 'Compartilhar no WhatsApp',
-              onPressed: () => _compartilharEscalaWhatsApp(context, escalaAsync.value ?? []),
+              onPressed: () =>
+                  _compartilharEscalaWhatsApp(context, escalaAsync.value ?? []),
             ),
             Consumer(
               builder: (context, ref, child) {
                 final role = ref.watch(userRoleProvider);
                 if (role != UserRole.lider) return const SizedBox();
                 return IconButton(
-                  icon: const Icon(PhosphorIconsBold.robot, color: AppColors.acento),
+                  icon: Icon(
+                    PhosphorIconsBold.magicWand,
+                    color: context.textoPrimario,
+                  ),
                   tooltip: 'Gerar Escala Automática',
                   onPressed: () => _gerarEscala(context),
                 );
@@ -107,44 +125,79 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
             Consumer(
               builder: (context, ref, child) {
                 final role = ref.watch(userRoleProvider);
-                if (role != UserRole.lider) return const SizedBox();
-                return PopupMenuButton<String>(
-                  icon: const Icon(PhosphorIconsBold.plus, color: AppColors.acento),
-                  tooltip: 'Adicionar',
-                  onSelected: (value) {
-                    if (value == 'escala') {
-                      _addEscala(context);
-                    } else if (value == 'repertorio') {
-                      _criarNovoRepertorio(context);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'escala',
+                if (role != UserRole.lider) return const SizedBox(width: 8);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12, left: 4),
+                  child: PopupMenuButton<String>(
+                    tooltip: 'Adicionar',
+                    onSelected: (value) {
+                      if (value == 'escala') {
+                        _addEscala(context);
+                      } else if (value == 'repertorio') {
+                        _criarNovoRepertorio(context);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'escala',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsBold.userPlus,
+                              color: context.corPrimaria,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text('Membro à Escala'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'repertorio',
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsBold.musicNotesPlus,
+                              color: context.corPrimaria,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text('Repertório do Culto'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.acento,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(PhosphorIconsBold.user, color: AppColors.acento, size: 18),
-                          SizedBox(width: 8),
-                          Text('Membro à Escala'),
+                          const Icon(
+                            PhosphorIconsBold.plus,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Novo',
+                            style: AppTextStyles.label(color: Colors.white),
+                          ),
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
-                      value: 'repertorio',
-                      child: Row(
-                        children: [
-                          Icon(PhosphorIconsBold.musicNotes, color: AppColors.acento, size: 18),
-                          SizedBox(width: 8),
-                          Text('Repertório'),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 );
               },
             ),
           ],
-          bottom: tabBar,
+          bottom: segmentedTabs,
         ),
         body: bodyContent,
       ),
@@ -161,22 +214,26 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     return map;
   }
 
-  Widget _buildAbaEscala(List<EscalaItem> lista, List<AgendaItem> agenda, bool isJejum) {
+  Widget _buildAbaEscala(
+    List<EscalaItem> lista,
+    List<AgendaItem> agenda,
+    bool isJejum,
+  ) {
     final listaFiltrada = lista.where((item) {
       return isJejum ? item.ministerio == 'Jejum' : item.ministerio != 'Jejum';
     }).toList();
 
     final eventos = _mapearEventos(listaFiltrada);
-    final _selecionado = ref.watch(globalSelectedDateProvider);
-    final selKey = "${_selecionado.year}-${_selecionado.month}-${_selecionado.day}";
+    final selecionado = ref.watch(globalSelectedDateProvider);
+    final selKey =
+        "${selecionado.year}-${selecionado.month}-${selecionado.day}";
     final itensDia = eventos[selKey] ?? [];
-    
+
     final agendaDia = agenda.where((item) {
-      // Simplificado: verifica se o dia selecionado bate com a agenda
       final proximas = item.calcularProximasDatas(30);
-      return proximas.any((p) => isSameDay(p, _selecionado));
+      return proximas.any((p) => isSameDay(p, selecionado));
     }).toList();
-    
+
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     final agendaParaExibir = agendaDia.where((ag) {
@@ -186,8 +243,8 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     }).toList();
 
     return RefreshIndicator(
-      color: AppColors.acento,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      color: context.corPrimaria,
+      backgroundColor: context.bgCard,
       onRefresh: () async {
         ref.invalidate(escalaDoMesProvider);
         ref.invalidate(agendaProvider);
@@ -196,20 +253,46 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            if (!isDesktop) _buildCalendario(eventos, agenda, _selecionado),
+            if (!isDesktop) _buildCalendario(eventos, agenda, selecionado),
             if (!isDesktop) const SizedBox(height: 8),
-            if (itensDia.isNotEmpty || agendaParaExibir.isNotEmpty) _buildDetalhes(itensDia, agendaParaExibir, _selecionado),
+            if (itensDia.isNotEmpty || agendaParaExibir.isNotEmpty)
+              _buildDetalhes(itensDia, agendaParaExibir, selecionado),
             if (itensDia.isEmpty && agendaParaExibir.isEmpty)
               Padding(
-                padding: const EdgeInsets.all(32),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 48,
+                ),
                 child: Column(
                   children: [
-                    const Icon(PhosphorIconsBold.calendarBlank,
-                        color: AppColors.textoMuted, size: 48),
-                    const SizedBox(height: 12),
-                    Text('Nenhuma escala neste dia.',
-                        style:
-                            AppTextStyles.body(color: context.textoSecund)),
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: context.bgSubtle,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Icon(
+                        PhosphorIconsRegular.calendarBlank,
+                        color: context.textoMuted,
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Nenhuma escala neste dia',
+                      style: AppTextStyles.subheading(
+                        color: context.textoPrimario,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Selecione outra data acima para visualizar os escalados.',
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.bodySmall(
+                        color: context.textoSecund,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -220,21 +303,21 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     );
   }
 
-  Widget _buildCalendario(Map<String, List<EscalaItem>> eventos, List<AgendaItem> agenda, DateTime selecionado) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
-      ),
+  Widget _buildCalendario(
+    Map<String, List<EscalaItem>> eventos,
+    List<AgendaItem> agenda,
+    DateTime selecionado,
+  ) {
+    return AppSurfaceCard(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
       child: TableCalendar(
         locale: 'pt_BR',
-        rowHeight: 36,
-        daysOfWeekHeight: 24,
+        rowHeight: 48,
+        daysOfWeekHeight: 30,
         availableCalendarFormats: const {
-          CalendarFormat.month: 'Mês',
-          CalendarFormat.week: 'Semana',
+          CalendarFormat.month: 'Visão Mensal',
+          CalendarFormat.week: 'Visão Semanal',
         },
         firstDay: DateTime(2024, 1, 1),
         lastDay: DateTime(2030, 12, 31),
@@ -262,72 +345,54 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
           ref.read(escalaMesProvider.notifier).state = foc.month;
         },
         calendarBuilders: CalendarBuilders(
-          markerBuilder: (context, day, events) => const SizedBox(), // Garante a remoção das bolinhas
-          
+          markerBuilder: (context, day, events) {
+            if (events.isEmpty) return const SizedBox();
+            final isSel = isSameDay(day, selecionado);
+            return Positioned(
+              bottom: 6,
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSel ? Colors.white : context.corPrimaria,
+                ),
+              ),
+            );
+          },
           defaultBuilder: (context, day, focusedDay) {
             final key = "${day.year}-${day.month}-${day.day}";
-            final temEscala = eventos.containsKey(key) && eventos[key]!.isNotEmpty;
-            
-            // Verifica agenda
+            final temEscala =
+                eventos.containsKey(key) && eventos[key]!.isNotEmpty;
+
             final diaAgenda = agenda.where((item) {
               final proximas = item.calcularProximasDatas(15);
               return proximas.any((p) => isSameDay(p, day));
             }).toList();
 
             if (diaAgenda.isNotEmpty || temEscala) {
-              Color cor = AppColors.acento;
+              Color cor = context.corPrimaria;
               if (diaAgenda.isNotEmpty) {
                 final primary = diaAgenda.first;
-                if (primary.tipo == TipoAgenda.evento || primary.tipo == TipoAgenda.reuniao) {
-                  cor = AppColors.perigo;
-                } else if (primary.tipo == TipoAgenda.culto) {
-                  cor = AppColors.acento;
+                if (primary.tipo == TipoAgenda.evento ||
+                    primary.tipo == TipoAgenda.reuniao) {
+                  cor = AppColors.alerta;
                 }
-              } else {
-                cor = AppColors.acentoAzul; // Cor padrão para escala avulsa
               }
 
               return Container(
+                margin: const EdgeInsets.all(4),
                 alignment: Alignment.center,
-                child: Text(
-                  '${day.day}',
-                  style: AppTextStyles.bodySmall(
-                    color: cor,
-                    fontWeight: FontWeight.bold,
-                  ),
+                decoration: BoxDecoration(
+                  color: cor.withValues(alpha: context.isDark ? 0.16 : 0.10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            }
-            return null;
-          },
-
-          outsideBuilder: (context, day, focusedDay) {
-            final key = "${day.year}-${day.month}-${day.day}";
-            final temEscala = eventos.containsKey(key) && eventos[key]!.isNotEmpty;
-            
-            final diaAgenda = agenda.where((item) {
-              final proximas = item.calcularProximasDatas(15);
-              return proximas.any((p) => isSameDay(p, day));
-            }).toList();
-
-            if (diaAgenda.isNotEmpty || temEscala) {
-              Color cor = AppColors.acento;
-              if (diaAgenda.isNotEmpty) {
-                final primary = diaAgenda.first;
-                if (primary.tipo == TipoAgenda.evento || primary.tipo == TipoAgenda.reuniao) {
-                  cor = AppColors.perigo;
-                } else if (primary.tipo == TipoAgenda.culto) {
-                  cor = AppColors.acento;
-                }
-              } else {
-                cor = AppColors.textoMuted;
-              }
-
-              return Container(
-                alignment: Alignment.center,
                 child: Text(
                   '${day.day}',
-                  style: AppTextStyles.bodySmall(color: cor.withValues(alpha: 0.3)),
+                  style: AppTextStyles.body(
+                    color: cor,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               );
             }
@@ -335,51 +400,75 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
           },
         ),
         calendarStyle: CalendarStyle(
-          defaultTextStyle: AppTextStyles.bodySmall(),
-          weekendTextStyle: AppTextStyles.bodySmall(color: AppColors.acento),
-          outsideTextStyle: AppTextStyles.bodySmall(color: AppColors.textoMuted),
-          selectedDecoration: BoxDecoration(
-            color: AppColors.acento.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.acento.withValues(alpha: 0.3)),
-          ),
-          selectedTextStyle:
-              const TextStyle(color: AppColors.acento, fontWeight: FontWeight.bold, fontSize: 13),
-          todayDecoration: const BoxDecoration(
-            color: AppColors.acento,
-            shape: BoxShape.circle,
-          ),
-          todayTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12),
+          defaultTextStyle: AppTextStyles.body(color: context.textoPrimario),
+          weekendTextStyle: AppTextStyles.body(color: context.textoSecund),
           outsideDaysVisible: false,
-          cellMargin: const EdgeInsets.all(2),
-        ),
-        daysOfWeekStyle: DaysOfWeekStyle(
-          weekdayStyle: AppTextStyles.bodySmall(color: context.textoSecund),
-          weekendStyle: AppTextStyles.bodySmall(color: AppColors.acento),
-        ),
-        headerStyle: HeaderStyle(
-          titleTextStyle: AppTextStyles.subheading(),
-          formatButtonVisible: true,
-          formatButtonDecoration: BoxDecoration(
-            border: Border.all(color: AppColors.acento.withValues(alpha: 0.5)),
+          cellMargin: const EdgeInsets.all(4),
+          selectedDecoration: BoxDecoration(
+            color: AppColors.acento,
             borderRadius: BorderRadius.circular(12),
           ),
-          formatButtonTextStyle: AppTextStyles.bodySmall(color: AppColors.acento),
-          titleCentered: true,
-          leftChevronIcon:
-              const Icon(Icons.chevron_left, color: AppColors.acento),
-          rightChevronIcon:
-              const Icon(Icons.chevron_right, color: AppColors.acento),
+          selectedTextStyle: AppTextStyles.body(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+          todayDecoration: BoxDecoration(
+            color: context.bgSubtle,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.corPrimaria, width: 1.5),
+          ),
+          todayTextStyle: AppTextStyles.body(
+            color: context.corPrimaria,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: AppTextStyles.label(color: context.textoMuted),
+          weekendStyle: AppTextStyles.label(color: context.textoMuted),
+        ),
+        headerStyle: HeaderStyle(
+          titleTextStyle: AppTextStyles.subheading(
+            color: context.textoPrimario,
+          ),
+          formatButtonVisible: true,
+          formatButtonShowsNext: false,
+          formatButtonDecoration: BoxDecoration(
+            color: context.acentoSuave,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          formatButtonPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 6,
+          ),
+          formatButtonTextStyle: AppTextStyles.label(
+            color: context.acentoTexto,
+          ),
+          titleCentered: false,
+          leftChevronIcon: Icon(
+            Icons.chevron_left_rounded,
+            color: context.textoPrimario,
+          ),
+          rightChevronIcon: Icon(
+            Icons.chevron_right_rounded,
+            color: context.textoPrimario,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDetalhes(List<EscalaItem> itens, List<AgendaItem> agendaDia, DateTime selecionado) {
-    final dataExibicao = itens.isNotEmpty ? DateTime.parse(itens.first.data) : selecionado;
-    final dataFmt = DateFormat('dd/MM/yyyy (EEEE)', 'pt_BR').format(dataExibicao);
+  Widget _buildDetalhes(
+    List<EscalaItem> itens,
+    List<AgendaItem> agendaDia,
+    DateTime selecionado,
+  ) {
+    final dataExibicao =
+        itens.isNotEmpty ? DateTime.parse(itens.first.data) : selecionado;
+    final dataFmt =
+        DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(dataExibicao);
+    final dataCap =
+        dataFmt.isNotEmpty ? dataFmt[0].toUpperCase() + dataFmt.substring(1) : '';
 
-    // Agrupar por horário → ministério
     final porHorario = <String, List<EscalaItem>>{};
     for (final item in itens) {
       porHorario.putIfAbsent(item.horario, () => []).add(item);
@@ -387,57 +476,80 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     final horarios = porHorario.keys.toList()..sort();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(dataFmt, style: AppTextStyles.subheading()),
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 12),
+            child: Text(
+              dataCap,
+              style: AppTextStyles.subheading(color: context.textoPrimario),
+            ),
           ),
-          
           if (agendaDia.isNotEmpty) ...[
             ...agendaDia.map((ag) {
-              final cor = ag.tipo == TipoAgenda.culto ? AppColors.acento : AppColors.perigo;
-              final icone = ag.tipo == TipoAgenda.culto ? PhosphorIconsBold.church : PhosphorIconsBold.calendarStar;
-              
-              return Container(
+              final cor = ag.tipo == TipoAgenda.culto
+                  ? context.corPrimaria
+                  : AppColors.alerta;
+              final icone = ag.tipo == TipoAgenda.culto
+                  ? PhosphorIconsBold.church
+                  : PhosphorIconsBold.calendarStar;
+
+              return AppSurfaceCard(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cor.withValues(alpha: 0.2)),
-                ),
+                padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(icone, color: cor, size: 20),
-                    const SizedBox(width: 12),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: cor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(icone, color: cor, size: 22),
+                    ),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(ag.titulo, style: AppTextStyles.body(fontWeight: FontWeight.bold)),
-                          Text(ag.horario, style: AppTextStyles.bodySmall(color: context.textoSecund)),
+                          Text(
+                            ag.titulo,
+                            style: AppTextStyles.body(
+                              color: context.textoPrimario,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            ag.horario,
+                            style: AppTextStyles.bodySmall(
+                              color: context.textoSecund,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: cor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        color: cor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         ag.tipo.name.toUpperCase(),
-                        style: AppTextStyles.label(color: cor).copyWith(fontSize: 10),
+                        style: AppTextStyles.label(color: cor)
+                            .copyWith(fontSize: 12),
                       ),
                     ),
                   ],
                 ),
               );
             }),
-            if (itens.isNotEmpty) const Divider(height: 32),
           ],
           ...horarios.map((hora) {
             final itensHora = porHorario[hora]!;
@@ -447,57 +559,70 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
               porMin.putIfAbsent(i.ministerio, () => []).add(i);
             }
 
-            return Container(
+            return AppSurfaceCard(
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.acento.withValues(alpha: 0.1),
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
+                  // Cabeçalho limpo do Culto / Horário
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
                     child: Row(
                       children: [
-                        const Icon(PhosphorIconsBold.clock,
-                            color: AppColors.acento, size: 16),
-                        const SizedBox(width: 6),
-                        Text(hora,
-                            style: AppTextStyles.mono(color: AppColors.acento)),
-                        if (tema.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '— $tema',
-                              style: AppTextStyles.bodySmall(),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                        ] else
-                          const Spacer(),
-                        
-                        // Botão Play (Playlist)
-                        _PlaylistPlayButton(dataCulto: itens.first.data, horaCulto: hora),
-                        
-                        // Botão Adicionar Músicas (+)
+                          decoration: BoxDecoration(
+                            color: context.acentoSuave,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                PhosphorIconsBold.clock,
+                                color: context.acentoTexto,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                hora.isNotEmpty ? hora : 'Dia todo',
+                                style: AppTextStyles.mono(
+                                  color: context.acentoTexto,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            tema.isNotEmpty ? tema : 'Programação',
+                            style: AppTextStyles.subheading(
+                              color: context.textoPrimario,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _PlaylistPlayButton(
+                          dataCulto: itens.first.data,
+                          horaCulto: hora,
+                        ),
                         PopupMenuButton<String>(
-                          icon: const Icon(PhosphorIconsBold.plus, color: AppColors.acento, size: 18),
+                          icon: Icon(
+                            PhosphorIconsBold.dotsThreeVertical,
+                            color: context.textoSecund,
+                            size: 20,
+                          ),
                           tooltip: 'Opções do Culto',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
                           onSelected: (value) async {
                             if (value == 'musica') {
                               _gerenciarSetlist(context, itens.first.data, hora);
                             } else if (value == 'membro') {
-                              final dataObj = DateTime.tryParse(itens.first.data);
+                              final dataObj =
+                                  DateTime.tryParse(itens.first.data);
                               await showModalBottomSheet(
                                 context: context,
                                 isScrollControlled: true,
@@ -510,65 +635,93 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
                               ref.invalidate(escalaDoMesProvider);
                             }
                           },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'musica',
-                              child: Row(
-                                children: [
-                                  Icon(PhosphorIconsBold.musicNotes, color: AppColors.acento, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Músicas do Culto'),
-                                ],
+                          itemBuilder: (context) {
+                            final role = ref.read(userRoleProvider);
+                            return [
+                              PopupMenuItem(
+                                value: 'musica',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      PhosphorIconsBold.musicNotes,
+                                      color: context.corPrimaria,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text('Músicas do Culto'),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'membro',
-                              child: Row(
-                                children: [
-                                  Icon(PhosphorIconsBold.user, color: AppColors.acento, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Adicionar Membro'),
-                                ],
-                              ),
-                            ),
-                          ],
+                              if (role == UserRole.lider)
+                                PopupMenuItem(
+                                  value: 'membro',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        PhosphorIconsBold.userPlus,
+                                        color: context.corPrimaria,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text('Adicionar Membro'),
+                                    ],
+                                  ),
+                                ),
+                            ];
+                          },
                         ),
                       ],
                     ),
                   ),
-                  ...porMin.entries.toList().asMap().entries.map((entry) {
-                    final minIdx = entry.key;
-                    final minNome = entry.value.key;
-                    final minItens = entry.value.value;
-                    final cor = AppColors
-                        .minColors[minIdx % AppColors.minColors.length];
+                  Divider(height: 1, color: context.bgBorda),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      children:
+                          porMin.entries.toList().asMap().entries.map((entry) {
+                        final minIdx = entry.key;
+                        final minNome = entry.value.key;
+                        final minItens = entry.value.value;
+                        final cor = AppColors
+                            .minColors[minIdx % AppColors.minColors.length];
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                          child: Row(children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                  color: cor, shape: BoxShape.circle),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(18, 14, 18, 6),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: cor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    minNome.toUpperCase(),
+                                    style: AppTextStyles.label(color: cor),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(minNome,
-                                style: AppTextStyles.label(color: cor)),
-                          ]),
-                        ),
-                        ...minItens.map((e) => _EscalaItemTile(
-                              item: e,
-                              cor: cor,
-                              onRefresh: () =>
-                                  ref.invalidate(escalaDoMesProvider),
-                            )),
-                      ],
-                    );
-                  }),
+                            ...minItens.map(
+                              (e) => _EscalaItemTile(
+                                item: e,
+                                cor: cor,
+                                onRefresh: () =>
+                                    ref.invalidate(escalaDoMesProvider),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -599,7 +752,6 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     );
 
     if (data == null) return;
-
     if (!context.mounted) return;
 
     final hora = await showTimePicker(
@@ -608,19 +760,20 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     );
 
     if (hora == null) return;
-
     if (!context.mounted) return;
 
     final dataStr = DateFormat('yyyy-MM-dd').format(data);
-    final horaStr = '${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}';
+    final horaStr =
+        '${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}';
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ModalSetlistRapido(dataCulto: dataStr, horaCulto: horaStr),
+      builder: (_) =>
+          ModalSetlistRapido(dataCulto: dataStr, horaCulto: horaStr),
     );
-    
+
     ref.invalidate(repertoriosProvider);
   }
 
@@ -656,16 +809,6 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
       cancelText: 'Cancelar',
       confirmText: 'Compartilhar',
       saveText: 'Compartilhar',
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.acento,
-                ),
-          ),
-          child: child!,
-        );
-      },
     );
 
     if (picked == null) return;
@@ -673,10 +816,11 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     final itensFiltrados = itens.where((item) {
       final dataItem = DateTime.parse(item.data);
       final d = DateTime(dataItem.year, dataItem.month, dataItem.day);
-      final start = DateTime(picked.start.year, picked.start.month, picked.start.day);
+      final start =
+          DateTime(picked.start.year, picked.start.month, picked.start.day);
       final end = DateTime(picked.end.year, picked.end.month, picked.end.day);
-      return (d.isAtSameMomentAs(start) || d.isAfter(start)) && 
-             (d.isAtSameMomentAs(end) || d.isBefore(end));
+      return (d.isAtSameMomentAs(start) || d.isAfter(start)) &&
+          (d.isAtSameMomentAs(end) || d.isBefore(end));
     }).toList();
 
     if (itensFiltrados.isEmpty) {
@@ -705,7 +849,8 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     }
   }
 
-  Future<void> _gerenciarSetlist(BuildContext context, String data, String hora) async {
+  Future<void> _gerenciarSetlist(
+      BuildContext context, String data, String hora) async {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -716,9 +861,7 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
   }
 
   Future<void> _pesquisarMembro(BuildContext context) async {
-    // Mostra um loading se necessário ou aguarda o future
     final listaMembros = await ref.read(membrosProvider.future);
-    
     if (!context.mounted) return;
 
     final nomes = listaMembros.map((e) => e.nome).toSet().toList()..sort();
@@ -730,13 +873,15 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
     if (selecionado != null && context.mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => _ModalCompromissos(nome: selecionado)),
+        MaterialPageRoute(
+          builder: (_) => _ModalCompromissos(nome: selecionado),
+        ),
       );
     }
   }
 }
 
-// ─── Item Tile ────────────────────────────────────────────────────────────────
+// ─── Item Tile Limpo (Avatares + Sem Poluição de Caixas) ──────────────────────
 class _EscalaItemTile extends ConsumerWidget {
   final EscalaItem item;
   final Color cor;
@@ -748,115 +893,107 @@ class _EscalaItemTile extends ConsumerWidget {
     required this.onRefresh,
   });
 
-  IconData _getIconeFuncao(String funcao, String ministerio) {
-    final f = funcao.toLowerCase();
-    final m = ministerio.toLowerCase();
-
-    if (m.contains('jejum')) return PhosphorIconsBold.coffee;
-    if (f.contains('guitarra') || f.contains('violão') || f.contains('violao') || f.contains('baixo')) return PhosphorIconsBold.guitar;
-    if (f.contains('bateria')) return PhosphorIconsBold.musicNote;
-    if (f.contains('teclado') || f.contains('piano')) return PhosphorIconsBold.keyboard;
-    if (f.contains('voz') || f.contains('canto') || f.contains('back') || f.contains('ministro')) return PhosphorIconsBold.microphone;
-    if (f.contains('pregador') || f.contains('pastor') || f.contains('palavra')) return PhosphorIconsBold.megaphone;
-    if (f.contains('infantil') || f.contains('criança') || f.contains('tias') || f.contains('tio')) return PhosphorIconsBold.baby;
-    if (f.contains('som') || f.contains('mesa') || f.contains('áudio') || f.contains('audio')) return PhosphorIconsBold.speakerHigh;
-    if (f.contains('mídia') || f.contains('midia') || f.contains('projeção') || f.contains('letra')) return PhosphorIconsBold.desktop;
-    
-    return PhosphorIconsBold.user;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final falta = item.nome == '[FALTA]';
+    final falta = item.nome == '[FALTA]' || item.statusConvite == 'FALTA';
+    final role = ref.watch(userRoleProvider);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1.5),
-      child: Container(
-        decoration: BoxDecoration(
-          color: falta
-              ? AppColors.perigo.withValues(alpha: 0.08)
-              : Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: falta
-                ? AppColors.perigo.withValues(alpha: 0.3)
-                : (Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      child: Row(
+        children: [
+          AppAvatar(
+            name: item.nome == '[FALTA]' ? '!' : item.nome,
+            size: 42,
+            accentColor: falta ? AppColors.perigo : cor,
           ),
-        ),
-        child: ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          leading: Icon(
-            _getIconeFuncao(item.funcao, item.ministerio),
-            color: falta ? AppColors.perigo : cor,
-            size: 18,
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.nome,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.nome == '[FALTA]' ? 'Vaga em aberto' : item.nome,
                   style: AppTextStyles.body(
-                      color: falta ? AppColors.perigo : context.textoPrimario),
+                    color: falta ? AppColors.perigo : context.textoPrimario,
+                    fontWeight: FontWeight.w700,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                item.funcao,
-                style: AppTextStyles.bodySmall(color: context.textoSecund),
-              ),
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (item.statusConvite == 'PRESENTE')
-                const Icon(PhosphorIconsBold.checkCircle,
-                    color: AppColors.sucesso, size: 16)
-              else if (item.statusConvite == 'ENVIADO')
-                const Icon(PhosphorIconsBold.paperPlaneTilt,
-                    color: AppColors.acento, size: 16)
-              else if (item.statusConvite == 'FALTA')
-                const Icon(PhosphorIconsBold.xCircle,
-                    color: AppColors.perigo, size: 16)
-              else
-                const Icon(PhosphorIconsBold.clock,
-                    color: AppColors.textoMuted, size: 16),
-              const SizedBox(width: 4),
-              Consumer(
-                builder: (context, ref, child) {
-                  final role = ref.watch(userRoleProvider);
-                    if (role == UserRole.membro) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(PhosphorIconsBold.lock, color: AppColors.textoMuted, size: 16),
-                      );
-                    }
-                  return PopupMenuButton<String>(
-                    icon: Icon(PhosphorIconsBold.dotsThreeVertical,
-                        color: context.textoSecund, size: 18),
-                    color: Theme.of(context).colorScheme.surface,
-
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'editar', child: Text('Editar')),
-                  const PopupMenuItem(
-                      value: 'presenca', child: Text('Marcar Presença')),
-                  const PopupMenuItem(
-                      value: 'falta', child: Text('Registrar Falta')),
-                  const PopupMenuItem(
-                      value: 'excluir',
-                      child: Text('Excluir',
-                          style: TextStyle(color: AppColors.perigo))),
+                if (item.funcao.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    item.funcao,
+                    style: AppTextStyles.bodySmall(
+                      color: context.textoSecund,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
-                onSelected: (v) => _onMenu(context, ref, v),
-              );
-            },
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
+          if (item.statusConvite == 'PRESENTE')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.sucesso.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Confirmado',
+                style: AppTextStyles.label(color: AppColors.sucesso)
+                    .copyWith(fontSize: 12),
+              ),
+            )
+          else if (item.statusConvite == 'FALTA')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.perigo.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Falta',
+                style: AppTextStyles.label(color: AppColors.perigo)
+                    .copyWith(fontSize: 12),
+              ),
+            )
+          else if (item.statusConvite == 'ENVIADO')
+            Icon(
+              PhosphorIconsBold.paperPlaneTilt,
+              color: context.corPrimaria,
+              size: 18,
+            ),
+          if (role == UserRole.lider)
+            PopupMenuButton<String>(
+              icon: Icon(
+                PhosphorIconsBold.dotsThreeVertical,
+                color: context.textoSecund,
+                size: 20,
+              ),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'editar', child: Text('Editar')),
+                PopupMenuItem(
+                  value: 'presenca',
+                  child: Text('Marcar Presença'),
+                ),
+                PopupMenuItem(
+                  value: 'falta',
+                  child: Text('Registrar Falta'),
+                ),
+                PopupMenuItem(
+                  value: 'excluir',
+                  child: Text(
+                    'Excluir',
+                    style: TextStyle(color: AppColors.perigo),
+                  ),
+                ),
+              ],
+              onSelected: (v) => _onMenu(context, ref, v),
+            ),
         ],
-
-          ),
-        ),
       ),
     );
   }
@@ -915,24 +1052,29 @@ class _EscalaItemTile extends ConsumerWidget {
     }
   }
 }
+
 class MembroSearchDelegate extends SearchDelegate<String?> {
   final List<String> nomes;
   MembroSearchDelegate(this.nomes);
 
   @override
+  String get searchFieldLabel => 'Buscar nome do membro...';
+
+  @override
   List<Widget>? buildActions(BuildContext context) {
     return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear_rounded),
+          onPressed: () => query = '',
+        ),
     ];
   }
 
   @override
   Widget? buildLeading(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back_rounded),
       onPressed: () => close(context, null),
     );
   }
@@ -957,22 +1099,46 @@ class MembroSearchDelegate extends SearchDelegate<String?> {
     if (itens.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           child: Text(
-            query.isEmpty ? 'Nenhum membro cadastrado.' : 'Nenhum membro encontrado para "$query".',
+            query.isEmpty
+                ? 'Nenhum membro cadastrado.'
+                : 'Nenhum membro encontrado para "$query".',
             textAlign: TextAlign.center,
             style: AppTextStyles.body(color: context.textoSecund),
           ),
         ),
       );
     }
-    return ListView.builder(
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
       itemCount: itens.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final nome = itens[index];
-        return ListTile(
-          title: Text(nome, style: AppTextStyles.body()),
+        return AppSurfaceCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           onTap: () => close(context, nome),
+          child: Row(
+            children: [
+              AppAvatar(name: nome, size: 40),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  nome,
+                  style: AppTextStyles.body(
+                    color: context.textoPrimario,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(
+                PhosphorIconsBold.caretRight,
+                color: context.textoMuted,
+                size: 18,
+              ),
+            ],
+          ),
         );
       },
     );
@@ -992,14 +1158,6 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
   DateTime _focado = DateTime.now();
   DateTime _selecionado = DateTime.now();
 
-  @override
-  void initState() {
-    super.initState();
-    // Tenta focar no mês atual
-    _focado = DateTime.now();
-    _selecionado = DateTime.now();
-  }
-
   Map<String, List<EscalaItem>> _mapearEventos(List<EscalaItem> lista) {
     final map = <String, List<EscalaItem>>{};
     for (final item in lista) {
@@ -1012,33 +1170,40 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
 
   @override
   Widget build(BuildContext context) {
-    final compromissosAsync = ref.watch(compromissosDoMembroProvider(widget.nome));
+    final compromissosAsync =
+        ref.watch(compromissosDoMembroProvider(widget.nome));
     final escalaCompletaAsync = ref.watch(escalaDoMesProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: context.bgPrincipal,
       appBar: AppBar(
-        title: Text('Agenda de ${widget.nome}', style: AppTextStyles.heading(color: context.textoPrimario)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: context.textoPrimario),
-          onPressed: () => Navigator.pop(context),
+        title: Text(
+          'Agenda de ${widget.nome}',
+          style: AppTextStyles.heading(color: context.textoPrimario),
         ),
         actions: [
           compromissosAsync.when(
             data: (meusCompromissos) => IconButton(
-              icon: const Icon(PhosphorIconsBold.whatsappLogo, color: AppColors.sucesso),
+              icon: const Icon(
+                PhosphorIconsBold.whatsappLogo,
+                color: AppColors.sucesso,
+              ),
               tooltip: 'Exportar Agenda via WhatsApp',
-              onPressed: meusCompromissos.isEmpty ? null : () async {
-                try {
-                  await WhatsappService.compartilharEscala(
-                    itens: meusCompromissos,
-                    mes: _focado.month,
-                    ano: _focado.year,
-                  );
-                } catch (e) {
-                  if (context.mounted) AppSnackbar.show(context, e.toString(), erro: true);
-                }
-              },
+              onPressed: meusCompromissos.isEmpty
+                  ? null
+                  : () async {
+                      try {
+                        await WhatsappService.compartilharEscala(
+                          itens: meusCompromissos,
+                          mes: _focado.month,
+                          ano: _focado.year,
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          AppSnackbar.show(context, e.toString(), erro: true);
+                        }
+                      }
+                    },
             ),
             loading: () => const SizedBox(),
             error: (_, __) => const SizedBox(),
@@ -1048,7 +1213,8 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
       body: compromissosAsync.when(
         data: (meusCompromissos) {
           final eventosMembro = _mapearEventos(meusCompromissos);
-          final selKey = "${_selecionado.year}-${_selecionado.month}-${_selecionado.day}";
+          final selKey =
+              "${_selecionado.year}-${_selecionado.month}-${_selecionado.day}";
           final meusItensDia = eventosMembro[selKey] ?? [];
 
           return Padding(
@@ -1056,23 +1222,12 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
-
-                // Calendário
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                        ? context.bgBorda 
-                        : AppColors.bgBordaLight,
-                    ),
-                  ),
+                AppSurfaceCard(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
                   child: TableCalendar(
                     locale: 'pt_BR',
-                    rowHeight: 32,
-                    daysOfWeekHeight: 20,
+                    rowHeight: 42,
+                    daysOfWeekHeight: 26,
                     firstDay: DateTime(2024, 1, 1),
                     lastDay: DateTime(2030, 12, 31),
                     focusedDay: _focado,
@@ -1094,43 +1249,39 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
                     },
                     calendarFormat: CalendarFormat.month,
                     headerStyle: HeaderStyle(
-                      titleTextStyle: AppTextStyles.body(fontWeight: FontWeight.bold),
+                      titleTextStyle: AppTextStyles.subheading(
+                        color: context.textoPrimario,
+                      ),
                       formatButtonVisible: false,
                       titleCentered: true,
-                      leftChevronIcon: const Icon(Icons.chevron_left, color: AppColors.acento, size: 16),
-                      rightChevronIcon: const Icon(Icons.chevron_right, color: AppColors.acento, size: 16),
+                      leftChevronIcon: Icon(
+                        Icons.chevron_left_rounded,
+                        color: context.corPrimaria,
+                      ),
+                      rightChevronIcon: Icon(
+                        Icons.chevron_right_rounded,
+                        color: context.corPrimaria,
+                      ),
                     ),
                     calendarBuilders: CalendarBuilders(
-                      markerBuilder: (context, day, events) {
-                        if (events.isNotEmpty) {
-                          return Positioned(
-                            bottom: 4,
-                            child: Container(
-                              width: 4,
-                              height: 4,
-                              decoration: const BoxDecoration(
-                                color: AppColors.acento,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          );
-                        }
-                        return null;
-                      },
+                      markerBuilder: (context, day, events) => const SizedBox(),
                       defaultBuilder: (context, day, focusedDay) {
                         final key = "${day.year}-${day.month}-${day.day}";
-                        if (eventosMembro.containsKey(key) && eventosMembro[key]!.isNotEmpty) {
+                        if (eventosMembro.containsKey(key) &&
+                            eventosMembro[key]!.isNotEmpty) {
                           return Container(
                             margin: const EdgeInsets.all(4),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: AppColors.acento.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.acento),
+                              color: context.acentoSuave,
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '${day.day}',
-                              style: AppTextStyles.bodySmall(color: context.textoPrimario),
+                              style: AppTextStyles.bodySmall(
+                                color: context.acentoTexto,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           );
                         }
@@ -1138,81 +1289,115 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
                       },
                     ),
                     calendarStyle: CalendarStyle(
-                      defaultTextStyle: AppTextStyles.bodySmall(),
-                      weekendTextStyle: AppTextStyles.bodySmall(color: AppColors.acento),
-                      outsideTextStyle: AppTextStyles.bodySmall(color: AppColors.textoMuted),
-                      selectedDecoration: const BoxDecoration(
+                      defaultTextStyle:
+                          AppTextStyles.bodySmall(color: context.textoPrimario),
+                      weekendTextStyle:
+                          AppTextStyles.bodySmall(color: context.textoSecund),
+                      outsideDaysVisible: false,
+                      selectedDecoration: BoxDecoration(
                         color: AppColors.acento,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      selectedTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11),
+                      selectedTextStyle: AppTextStyles.bodySmall(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
                       todayDecoration: BoxDecoration(
-                        color: AppColors.acento.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        color: context.bgSubtle,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: context.corPrimaria),
                       ),
-                      todayTextStyle: const TextStyle(color: AppColors.acento, fontSize: 11),
+                      todayTextStyle: AppTextStyles.bodySmall(
+                        color: context.corPrimaria,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Conteúdo com Scroll
                 Expanded(
                   child: ListView(
                     children: [
-                      // Seus Compromissos no Dia
-                      Text('Seus Compromissos no Dia', style: AppTextStyles.label(color: AppColors.acento)),
-                      const SizedBox(height: 8),
+                      Text(
+                        'COMPROMISSOS NO DIA',
+                        style: AppTextStyles.label(color: context.corPrimaria),
+                      ),
+                      const SizedBox(height: 10),
                       if (meusItensDia.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text('Nenhum compromisso seu neste dia.', style: AppTextStyles.bodySmall(color: context.textoSecund)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Nenhum compromisso para ${widget.nome} neste dia.',
+                            style: AppTextStyles.body(
+                              color: context.textoSecund,
+                            ),
+                          ),
                         )
                       else
                         ...meusItensDia.map((item) {
                           final isJejum = item.ministerio == 'Jejum';
                           final jaSalvo = _itensSalvos.contains(item.id);
-                          return Card(
-                            color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: jaSalvo ? AppColors.sucesso : context.bgBorda,
-                              ),
+                          return AppSurfaceCard(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                            child: ListTile(
-                              dense: true,
-                              title: Text(isJejum ? 'Jejum Diário' : item.ministerio, style: AppTextStyles.body().copyWith(fontWeight: FontWeight.bold)),
-                              subtitle: Text(
-                                isJejum ? 'Dia de Jejum' : 'Função: ${item.funcao}\nHorário: ${item.horario}',
-                                style: AppTextStyles.bodySmall(),
-                              ),
-                              trailing: IconButton(
-                                icon: Icon(
-                                  jaSalvo ? PhosphorIconsBold.checkCircle : PhosphorIconsBold.calendarPlus,
-                                  color: jaSalvo ? AppColors.sucesso : AppColors.acento,
-                                  size: 20,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isJejum
+                                            ? 'Jejum Diário'
+                                            : item.ministerio,
+                                        style: AppTextStyles.subheading(
+                                          color: context.textoPrimario,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        isJejum
+                                            ? 'Dia de Jejum'
+                                            : '${item.funcao} • ${item.horario}',
+                                        style: AppTextStyles.bodySmall(
+                                          color: context.textoSecund,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                tooltip: 'Salvar na Agenda do Celular',
-                                onPressed: () {
-                                  _salvarNaAgenda(item);
-                                  setState(() {
-                                    _itensSalvos.add(item.id);
-                                  });
-                                },
-                              ),
+                                IconButton(
+                                  icon: Icon(
+                                    jaSalvo
+                                        ? PhosphorIconsBold.checkCircle
+                                        : PhosphorIconsBold.calendarPlus,
+                                    color: jaSalvo
+                                        ? AppColors.sucesso
+                                        : context.corPrimaria,
+                                    size: 22,
+                                  ),
+                                  tooltip: 'Salvar na Agenda do Celular',
+                                  onPressed: () {
+                                    _salvarNaAgenda(item);
+                                    setState(() {
+                                      _itensSalvos.add(item.id);
+                                    });
+                                  },
+                                ),
+                              ],
                             ),
                           );
                         }),
-
                       const SizedBox(height: 16),
-                      Divider(color: context.bgBorda),
-                      const SizedBox(height: 8),
-
-                      // Escala Completa do Dia
-                      Text('Escala Completa do Dia', style: AppTextStyles.label()),
-                      const SizedBox(height: 8),
+                      Text(
+                        'ESCALA COMPLETA DO DIA',
+                        style: AppTextStyles.label(color: context.textoSecund),
+                      ),
+                      const SizedBox(height: 10),
                       escalaCompletaAsync.when(
                         data: (todasEscalas) {
                           final diaFiltrado = todasEscalas.where((e) {
@@ -1224,11 +1409,14 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
                           }).toList();
 
                           if (diaFiltrado.isEmpty) {
-                            return Text('Nenhuma escala cadastrada para este dia.', 
-                                style: AppTextStyles.bodySmall(color: context.textoSecund));
+                            return Text(
+                              'Nenhuma escala cadastrada para este dia.',
+                              style: AppTextStyles.body(
+                                color: context.textoSecund,
+                              ),
+                            );
                           }
 
-                          // Agrupar por horário
                           final porHora = <String, List<EscalaItem>>{};
                           for (final e in diaFiltrado) {
                             porHora.putIfAbsent(e.horario, () => []).add(e);
@@ -1237,38 +1425,57 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: porHora.entries.map((entry) {
-                              return Container(
+                              return AppSurfaceCard(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                                padding: const EdgeInsets.all(16),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('⏰ ${entry.key}', style: AppTextStyles.body(color: AppColors.acento, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 6),
+                                    Text(
+                                      entry.key.isNotEmpty
+                                          ? 'Horário: ${entry.key}'
+                                          : 'Dia Todo',
+                                      style: AppTextStyles.subheading(
+                                        color: context.corPrimaria,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
                                     ...entry.value.map((e) {
                                       final souEu = e.nome == widget.nome;
                                       return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 5,
+                                        ),
                                         child: Row(
                                           children: [
-                                            Text(e.nome == '[FALTA]' ? '❌ ' : '• ', style: const TextStyle(fontSize: 10)),
+                                            AppAvatar(
+                                              name: e.nome,
+                                              size: 34,
+                                              accentColor: souEu
+                                                  ? AppColors.acento
+                                                  : null,
+                                            ),
+                                            const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
-                                                e.nome == '[FALTA]' ? 'VAGA ABERTA' : e.nome,
-                                                style: AppTextStyles.bodySmall(
-                                                  color: souEu ? AppColors.acento : context.textoPrimario,
-                                                ).copyWith(
-                                                  fontWeight: souEu ? FontWeight.bold : FontWeight.normal,
+                                                e.nome == '[FALTA]'
+                                                    ? 'Vaga em aberto'
+                                                    : e.nome,
+                                                style: AppTextStyles.body(
+                                                  color: souEu
+                                                      ? context.corPrimaria
+                                                      : context.textoPrimario,
+                                                  fontWeight: souEu
+                                                      ? FontWeight.w700
+                                                      : FontWeight.w500,
                                                 ),
                                               ),
                                             ),
                                             Text(
                                               e.funcao,
-                                              style: AppTextStyles.bodySmall(color: context.textoSecund),
+                                              style: AppTextStyles.bodySmall(
+                                                color: context.textoSecund,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -1280,8 +1487,13 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
                             }).toList(),
                           );
                         },
-                        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.acento)),
-                        error: (_, __) => const Text('Erro ao carregar escala completa.'),
+                        loading: () => Center(
+                          child: CircularProgressIndicator(
+                            color: context.corPrimaria,
+                          ),
+                        ),
+                        error: (_, __) =>
+                            const Text('Erro ao carregar escala completa.'),
                       ),
                     ],
                   ),
@@ -1290,8 +1502,11 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.acento)),
-        error: (_, __) => Text('Erro ao buscar compromissos.', style: AppTextStyles.body()),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.corPrimaria),
+        ),
+        error: (_, __) =>
+            Text('Erro ao buscar compromissos.', style: AppTextStyles.body()),
       ),
     );
   }
@@ -1319,8 +1534,9 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
           '${dtFim.year}${dtFim.month.toString().padLeft(2, '0')}${dtFim.day.toString().padLeft(2, '0')}T${dtFim.hour.toString().padLeft(2, '0')}${dtFim.minute.toString().padLeft(2, '0')}00';
     }
 
-    final titulo = Uri.encodeComponent(
-        item.ministerio == 'Jejum' ? 'Jejum IBAI' : 'Escala IBAI - ${item.ministerio}');
+    final titulo = Uri.encodeComponent(item.ministerio == 'Jejum'
+        ? 'Jejum IBAI'
+        : 'Escala IBAI - ${item.ministerio}');
     final detalhes = Uri.encodeComponent(item.ministerio == 'Jejum'
         ? 'Seu dia de Jejum IBAI.'
         : 'Ministério: ${item.ministerio}\nFunção: ${item.funcao}');
@@ -1338,7 +1554,7 @@ class _ModalCompromissosState extends ConsumerState<_ModalCompromissos> {
   }
 }
 
-// ─── Botão de Playlist do YouTube ────────────────────────────────────────────
+// ─── Botão Pílula de Playlist do YouTube ─────────────────────────────────────
 class _PlaylistPlayButton extends ConsumerWidget {
   final String dataCulto;
   final String horaCulto;
@@ -1370,36 +1586,74 @@ class _PlaylistPlayButton extends ConsumerWidget {
       data: (lista) {
         final rep = lista.firstWhere(
           (r) => r.dataCulto == dataCulto && r.horaCulto == horaCulto,
-          orElse: () => Repertorio(id: '', dataCulto: dataCulto, horaCulto: horaCulto, listaMusicas: [], createdAt: DateTime.now()),
+          orElse: () => Repertorio(
+            id: '',
+            dataCulto: dataCulto,
+            horaCulto: horaCulto,
+            listaMusicas: [],
+            createdAt: DateTime.now(),
+          ),
         );
 
         if (rep.listaMusicas.isEmpty) return const SizedBox();
 
-        return IconButton(
-          icon: const Icon(PhosphorIconsBold.play, color: AppColors.acento, size: 18),
-          tooltip: 'Tocar Playlist',
-          padding: const EdgeInsets.only(right: 8),
-          constraints: const BoxConstraints(),
-          onPressed: () async {
-            final ids = rep.listaMusicas
-                .map((m) => _extrairVideoId(m['link'] ?? ''))
-                .where((id) => id != null)
-                .cast<String>()
-                .toList();
+        return Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () async {
+              final ids = rep.listaMusicas
+                  .map((m) => _extrairVideoId(m['link'] ?? ''))
+                  .where((id) => id != null)
+                  .cast<String>()
+                  .toList();
 
-            if (ids.isEmpty) {
-              AppSnackbar.show(context, 'Nenhum link do YouTube válido encontrado.');
-              return;
-            }
+              if (ids.isEmpty) {
+                AppSnackbar.show(
+                  context,
+                  'Nenhum link do YouTube válido encontrado.',
+                );
+                return;
+              }
 
-            final playlistUrl = 'https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}';
-            final uri = Uri.parse(playlistUrl);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } else {
-              if (context.mounted) AppSnackbar.show(context, 'Não foi possível abrir o YouTube.');
-            }
-          },
+              final playlistUrl =
+                  'https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}';
+              final uri = Uri.parse(playlistUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } else {
+                if (context.mounted) {
+                  AppSnackbar.show(
+                    context,
+                    'Não foi possível abrir o YouTube.',
+                  );
+                }
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: context.acentoSuave,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    PhosphorIconsFill.play,
+                    color: context.acentoTexto,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Setlist',
+                    style: AppTextStyles.label(color: context.acentoTexto)
+                        .copyWith(fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
       loading: () => const SizedBox(),
@@ -1407,5 +1661,3 @@ class _PlaylistPlayButton extends ConsumerWidget {
     );
   }
 }
-
-

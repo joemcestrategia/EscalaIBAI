@@ -5,9 +5,11 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/theme_provider.dart';
 import '../../core/models/ministerio.dart';
 import '../../core/models/escala_item.dart';
 import '../../core/models/agenda_item.dart';
+import '../../shared/widgets/app_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,25 +29,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 900),
     );
     _fades = List.generate(
       5,
       (i) => Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: Interval(i * 0.2, (i * 0.2 + 0.6).clamp(0.0, 1.0),
+        curve: Interval(i * 0.14, (i * 0.14 + 0.6).clamp(0.0, 1.0),
             curve: Curves.easeOut),
       )),
     );
     _slides = List.generate(
       5,
       (i) => Tween<Offset>(
-        begin: const Offset(0, 0.3),
+        begin: const Offset(0, 0.12),
         end: Offset.zero,
       ).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: Interval(i * 0.2, (i * 0.2 + 0.6).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
+        curve: Interval(i * 0.14, (i * 0.14 + 0.6).clamp(0.0, 1.0),
+            curve: Curves.easeOutCubic),
       )),
     );
     _ctrl.forward();
@@ -69,26 +71,163 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return 'Boa noite';
   }
 
+  String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final hoje = _capitalize(
+      DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(DateTime.now()),
+    );
+    final nomeCompleto =
+        ref.watch(userRoleProvider.notifier).selectedMembroNome ?? '';
+    final primeiroNome = nomeCompleto.trim().isNotEmpty
+        ? nomeCompleto.trim().split(RegExp(r'\s+')).first
+        : '';
+    final saudacaoTexto =
+        primeiroNome.isNotEmpty ? '${_saudacao()}, $primeiroNome' : _saudacao();
+    final isDark = context.isDark;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hoje,
+                style: AppTextStyles.bodySmall(color: context.textoSecund),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                saudacaoTexto,
+                style: AppTextStyles.display(color: context.textoPrimario)
+                    .copyWith(fontSize: 24),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Atalho rápido de Modo Claro (Dia) / Escuro (Palco)
+        Material(
+          color: context.bgCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: context.bgBorda),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              ref.read(themeModeProvider.notifier).setThemeMode(
+                    isDark ? ThemeMode.light : ThemeMode.dark,
+                  );
+            },
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(
+                isDark ? PhosphorIconsBold.sun : PhosphorIconsBold.moon,
+                size: 20,
+                color: context.textoPrimario,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () {
+            final role = ref.read(userRoleProvider);
+            final configIndex = role == UserRole.membro ? 3 : 4;
+            AppNavigation.of(context)?.go(configIndex);
+          },
+          child: AppAvatar(
+            name: nomeCompleto.isNotEmpty ? nomeCompleto : 'IB',
+            size: 44,
+            accentColor: AppColors.acento,
+            circular: true,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVersiculoBanner(
+    BuildContext context,
+    AsyncValue<Map<String, String>> versiculo,
+  ) {
+    return versiculo.when(
+      data: (v) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: context.bgSubtle,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: context.bgBorda),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  PhosphorIconsFill.bookOpenText,
+                  size: 18,
+                  color: context.corPrimaria,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'PALAVRA DO DIA',
+                  style: AppTextStyles.label(color: context.corPrimaria),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '“${v['texto']}”',
+              style: AppTextStyles.body(color: context.textoPrimario),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              v['ref'] ?? '',
+              style: AppTextStyles.label(color: context.textoSecund),
+            ),
+          ],
+        ),
+      ),
+      loading: () => const SizedBox(),
+      error: (_, __) => const SizedBox(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final nomeMembro =
+        ref.watch(userRoleProvider.notifier).selectedMembroNome ?? '';
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: context.bgPrincipal,
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.acento,
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          color: context.corPrimaria,
+          backgroundColor: context.bgCard,
           onRefresh: () async {
             ref.invalidate(versiculoProvider);
             ref.invalidate(proximaEscalaProvider);
             ref.invalidate(proximasAtividadesProvider);
             ref.invalidate(kpiMesProvider);
+            if (nomeMembro.isNotEmpty) {
+              ref.invalidate(compromissosDoMembroProvider(nomeMembro));
+            }
           },
           child: LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth >= 900) {
-                return _buildWebLayout(context);
+                return _buildWebLayout(context, nomeMembro);
               }
-              return _buildMobileLayout(context);
+              return _buildMobileLayout(context, nomeMembro);
             },
           ),
         ),
@@ -96,8 +235,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
-    final hoje = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(DateTime.now());
+  Widget _buildMobileLayout(BuildContext context, String nomeMembro) {
     final versiculo = ref.watch(versiculoProvider);
     final proxima = ref.watch(proximaEscalaProvider);
     final prefs = ref.watch(homePreferencesProvider);
@@ -105,64 +243,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.acento.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.acento.withValues(alpha: 0.4)),
-                ),
-                child: const Icon(Icons.church, color: AppColors.acento, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_saudacao(), style: AppTextStyles.subheading()),
-                    Text(hoje, style: AppTextStyles.bodySmall()),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          versiculo.when(
-            data: (v) => Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.acento.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.acento.withValues(alpha: 0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '"${v['texto']}"',
-                    style: AppTextStyles.bodySmall(color: context.textoPrimario).copyWith(fontStyle: FontStyle.italic),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    v['ref'] ?? '',
-                    style: AppTextStyles.monoSmall(color: AppColors.acento),
-                  ),
-                ],
-              ),
-            ),
-            loading: () => const SizedBox(),
-            error: (_, __) => const SizedBox(),
-          ),
-          const SizedBox(height: 16),
+          _buildHeader(context),
+          const SizedBox(height: 20),
+          if (nomeMembro.isNotEmpty)
+            _animated(0, _HeroMinhaProximaEscala(nomeMembro: nomeMembro)),
           if (prefs.mostrarEventos) ...[
             _animated(1, _ProximoEventoCard(atividades: proximasAtividades)),
             const SizedBox(height: 16),
@@ -171,21 +259,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             _animated(2, _ProximaEscalaCard(proxima: proxima)),
             const SizedBox(height: 16),
           ],
+          _buildVersiculoBanner(context, versiculo),
+          const SizedBox(height: 16),
           if (prefs.mostrarJejum) ...[
             _animated(3, const _JejumDoDiaCard()),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
           ],
           if (prefs.mostrarRelatorio) ...[
             _animated(4, const _RelatorioEscalasCard()),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildWebLayout(BuildContext context) {
-    final hoje = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(DateTime.now());
+  Widget _buildWebLayout(BuildContext context, String nomeMembro) {
     final versiculo = ref.watch(versiculoProvider);
     final proxima = ref.watch(proximaEscalaProvider);
     final prefs = ref.watch(homePreferencesProvider);
@@ -194,97 +283,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Coluna 1: Saudação + Agenda + Jejum (Largura fixa ~320)
-          SizedBox(
-            width: 320,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          _buildHeader(context),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 340,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.acento.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.acento.withValues(alpha: 0.4)),
+                    if (nomeMembro.isNotEmpty)
+                      _animated(
+                        0,
+                        _HeroMinhaProximaEscala(nomeMembro: nomeMembro),
                       ),
-                      child: const Icon(Icons.church, color: AppColors.acento, size: 26),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_saudacao(), style: AppTextStyles.subheading().copyWith(fontSize: 22)),
-                          Text(hoje, style: AppTextStyles.bodySmall()),
-                        ],
+                    if (prefs.mostrarEventos) ...[
+                      _animated(
+                        1,
+                        _ProximoEventoCard(atividades: proximasAtividades),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (prefs.mostrarJejum) ...[
+                      _animated(3, const _JejumDoDiaCard()),
+                      const SizedBox(height: 16),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 24),
-                if (prefs.mostrarEventos) ...[
-                  _animated(1, _ProximoEventoCard(atividades: proximasAtividades)),
-                  const SizedBox(height: 16),
-                ],
-                if (prefs.mostrarJejum) ...[
-                  _animated(3, const _JejumDoDiaCard()),
-                  const SizedBox(height: 16),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 24),
-          // Coluna 2: Feed/Versículo e Próximas Escalas (Flexível)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                versiculo.when(
-                  data: (v) => Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.acento.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.acento.withValues(alpha: 0.2)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '"${v['texto']}"',
-                          style: AppTextStyles.body(color: context.textoPrimario).copyWith(fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildVersiculoBanner(context, versiculo),
+                    const SizedBox(height: 20),
+                    if (prefs.mostrarEscalas) ...[
+                      Text(
+                        'Próximas Escalas',
+                        style: AppTextStyles.heading(
+                          color: context.textoPrimario,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          v['ref'] ?? '',
-                          style: AppTextStyles.monoSmall(color: AppColors.acento),
-                        ),
-                      ],
-                    ),
-                  ),
-                  loading: () => const SizedBox(),
-                  error: (_, __) => const SizedBox(),
+                      ),
+                      const SizedBox(height: 14),
+                      _animated(2, _ProximaEscalaCard(proxima: proxima)),
+                      const SizedBox(height: 20),
+                    ],
+                    if (prefs.mostrarRelatorio) ...[
+                      _animated(4, const _RelatorioEscalasCard()),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 24),
-                if (prefs.mostrarEscalas) ...[
-                  Text('Escalas Atuais', style: AppTextStyles.subheading(color: context.textoPrimario)),
-                  const SizedBox(height: 16),
-                  _animated(2, _ProximaEscalaCard(proxima: proxima)),
-                  const SizedBox(height: 24),
-                ],
-                if (prefs.mostrarRelatorio) ...[
-                  _animated(4, const _RelatorioEscalasCard()),
-                  const SizedBox(height: 24),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -292,10 +348,172 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
+// ─── Hero Card: Próximo Compromisso Pessoal do Membro ────────────────────────
+class _HeroMinhaProximaEscala extends ConsumerWidget {
+  final String nomeMembro;
+  const _HeroMinhaProximaEscala({required this.nomeMembro});
 
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncItens = ref.watch(compromissosDoMembroProvider(nomeMembro));
 
+    return asyncItens.when(
+      data: (todos) {
+        final now = DateTime.now();
+        final hoje = DateTime(now.year, now.month, now.day);
 
-// ─── Próxima Escala Card ──────────────────────────────────────────────────────
+        final futuros = todos.where((e) {
+          final d = DateTime.tryParse(e.data);
+          if (d == null) return false;
+          final dNorm = DateTime(d.year, d.month, d.day);
+          return !dNorm.isBefore(hoje);
+        }).toList();
+
+        futuros.sort((a, b) {
+          final cmp = a.data.compareTo(b.data);
+          if (cmp != 0) return cmp;
+          return a.horario.compareTo(b.horario);
+        });
+
+        if (futuros.isEmpty) return const SizedBox.shrink();
+
+        final prox = futuros.first;
+        final dataObj = DateTime.parse(prox.data);
+        final dataNorm = DateTime(dataObj.year, dataObj.month, dataObj.day);
+        final amanha = hoje.add(const Duration(days: 1));
+
+        String quandoLabel;
+        if (dataNorm == hoje) {
+          quandoLabel = 'HOJE';
+        } else if (dataNorm == amanha) {
+          quandoLabel = 'AMANHÃ';
+        } else {
+          quandoLabel =
+              DateFormat("EEE, dd 'de' MMM", 'pt_BR').format(dataObj).toUpperCase();
+        }
+
+        // Agrupa todas as funções do membro nesse mesmo culto/horário
+        final funcoesMesmoCulto = futuros
+            .where((x) => x.data == prox.data && x.horario == prox.horario)
+            .map((x) => x.funcao)
+            .toSet()
+            .join(' • ');
+
+        final tituloPrincipal =
+            prox.tema.trim().isNotEmpty ? prox.tema : prox.ministerio;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: context.heroGradient,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.acento.withValues(alpha: 0.28),
+                blurRadius: 22,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      'SUA PRÓXIMA ESCALA • $quandoLabel',
+                      style: AppTextStyles.label(color: Colors.white)
+                          .copyWith(fontSize: 12),
+                    ),
+                  ),
+                  if (prox.horario.isNotEmpty)
+                    Text(
+                      prox.horario,
+                      style: AppTextStyles.mono(color: Colors.white),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                tituloPrincipal,
+                style: AppTextStyles.heading(color: Colors.white)
+                    .copyWith(fontSize: 22),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${prox.ministerio} • $funcoesMesmoCulto',
+                style: AppTextStyles.body(
+                  color: Colors.white.withValues(alpha: 0.92),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        AppNavigation.of(context)?.go(2);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(PhosphorIconsBold.musicNotes, size: 18),
+                      label: const Text('Músicas & Cifras'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  OutlinedButton(
+                    onPressed: () {
+                      ref.read(globalSelectedDateProvider.notifier).state =
+                          dataObj;
+                      AppNavigation.of(context)?.go(1);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.14),
+                      foregroundColor: Colors.white,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('Ver Escala'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+// ─── Próxima Escala Card (Geral por Ministério) ──────────────────────────────
 class _ProximaEscalaCard extends ConsumerWidget {
   final AsyncValue<List<EscalaItem>> proxima;
   const _ProximaEscalaCard({required this.proxima});
@@ -306,7 +524,6 @@ class _ProximaEscalaCard extends ConsumerWidget {
       data: (lista) {
         if (lista.isEmpty) return const SizedBox();
 
-        // Agrupa por Ministério
         final Map<String, List<EscalaItem>> porMinisterio = {};
         for (var e in lista) {
           porMinisterio.putIfAbsent(e.ministerio, () => []).add(e);
@@ -330,13 +547,27 @@ class _ProximaEscalaCard extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const _ShimmerBox(height: 150),
-      error: (err, stack) => Column(
-        children: [
-          Text('Erro ao carregar escala.', style: AppTextStyles.body(color: AppColors.perigo)),
-          Text(err.toString(), style: AppTextStyles.bodySmall(color: context.textoSecund), maxLines: 2),
-          TextButton(onPressed: () => ref.invalidate(proximaEscalaProvider), child: const Text('Recarregar')),
-        ],
+      loading: () => const _ShimmerBox(height: 160),
+      error: (err, stack) => AppSurfaceCard(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            Text(
+              'Erro ao carregar escala.',
+              style: AppTextStyles.body(color: AppColors.perigo),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              err.toString(),
+              style: AppTextStyles.bodySmall(color: context.textoSecund),
+              maxLines: 2,
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(proximaEscalaProvider),
+              child: const Text('Recarregar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -369,84 +600,72 @@ class _CardMinisterioInternoState extends State<_CardMinisterioInterno> {
 
   @override
   Widget build(BuildContext context) {
-    // Agrupa os itens deste ministério por Data/Horário para as páginas do carrossel
     final Map<String, List<EscalaItem>> ocorrencias = {};
     for (var e in widget.itens) {
       final key = '${e.data}_${e.horario}';
       ocorrencias.putIfAbsent(key, () => []).add(e);
     }
     final chaves = ocorrencias.keys.toList();
-    
-    // Calcula a tag para a página atual
-    String? tag;
-    if (chaves.isNotEmpty) {
-      final data = DateTime.parse(ocorrencias[chaves[_currentPage]]!.first.data);
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final tomorrow = today.add(const Duration(days: 1));
-      final compareDate = DateTime(data.year, data.month, data.day);
-      if (compareDate == today) {
-        tag = 'HOJE';
-      } else if (compareDate == tomorrow) {
-        tag = 'AMANHÃ';
-      }
-    }
-
-    // Calcula a altura ideal para os membros
     if (chaves.isEmpty) return const SizedBox();
-    
-    final itensDaPagina = ocorrencias[chaves[_currentPage]] ?? [];
-    final temTema = itensDaPagina.isNotEmpty && itensDaPagina.first.tema.isNotEmpty;
-    // Base: data/hora(20) + tema(20) + margens(20) + itens(n * 28)
-    final double alturaCalculada = 40.0 + (temTema ? 20.0 : 0.0) + (itensDaPagina.length * 28.0) + 20.0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? context.bgBorda : AppColors.bgBordaLight),
-      ),
+    final safePage = _currentPage.clamp(0, chaves.length - 1);
+    final itensDaPagina = ocorrencias[chaves[safePage]] ?? [];
+    final primeiroPagina = itensDaPagina.first;
+    final dataAtual = DateTime.parse(primeiroPagina.data);
+    final temTema = primeiroPagina.tema.isNotEmpty;
+
+    // Altura confortável para fontes grandes + avatares (48px por membro + cabeçalho da data)
+    final double alturaCalculada =
+        46.0 + (temTema ? 26.0 : 0.0) + (itensDaPagina.length * 50.0) + 12.0;
+
+    return AppSurfaceCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Fixo do Ministério
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        widget.ministerioObj?.iconData ?? PhosphorIconsBold.usersThree,
+          // Header do Ministério
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: context.acentoSuave,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        widget.ministerioObj?.iconData ??
+                            PhosphorIconsBold.usersThree,
                         size: 20,
-                        color: AppColors.acento,
+                        color: context.acentoTexto,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          widget.nomeMinisterio,
-                          style: AppTextStyles.heading(color: AppColors.acento).copyWith(fontSize: 18),
-                        ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.nomeMinisterio,
+                        style: AppTextStyles.subheading(
+                          color: context.textoPrimario,
+                        ).copyWith(fontSize: 18),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                if (tag != null)
-                  Text(
-                    tag, 
-                    style: AppTextStyles.monoSmall(color: AppColors.acento).copyWith(fontWeight: FontWeight.bold),
-                  ),
-              ],
-            ),
+              ),
+              _buildTagHeader(context, dataAtual),
+            ],
           ),
-          
+          const SizedBox(height: 14),
+
           // Carrossel de Datas
           AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
             height: alturaCalculada,
             child: PageView.builder(
               controller: _pageController,
@@ -457,52 +676,105 @@ class _CardMinisterioInternoState extends State<_CardMinisterioInterno> {
                 final itensDaData = ocorrencias[chave]!;
                 final primeiro = itensDaData.first;
                 final data = DateTime.parse(primeiro.data);
-                final dataStr = DateFormat('dd/MM/yyyy (EEEE)', 'pt_BR').format(data);
+                final dataStr =
+                    DateFormat('dd/MM/yyyy (EEEE)', 'pt_BR').format(data);
 
                 return SingleChildScrollView(
                   physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(children: [
-                        Text(
-                          dataStr, 
-                          style: AppTextStyles.mono(color: context.textoPrimario),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.acento.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              dataStr,
+                              style: AppTextStyles.bodySmall(
+                                color: context.textoSecund,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          child: Text(primeiro.horario, style: AppTextStyles.monoSmall(color: AppColors.acento)),
-                        ),
-                      ]),
+                          if (primeiro.horario.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: context.acentoSuave,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                primeiro.horario,
+                                style: AppTextStyles.monoSmall(
+                                  color: context.acentoTexto,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       if (primeiro.tema.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Text(primeiro.tema, style: AppTextStyles.bodySmall(color: context.textoSecund), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          primeiro.tema,
+                          style: AppTextStyles.bodySmall(
+                            color: context.textoPrimario,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                       const SizedBox(height: 12),
-                      Column(
-                        children: itensDaData.map((e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
+                      ...itensDaData.map((e) {
+                        final isFalta =
+                            e.statusConvite == 'FALTA' || e.nome == '[FALTA]';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
                           child: Row(
                             children: [
-                              Icon(
-                                _getFuncaoIcon(e.funcao),
-                                size: 14,
-                                color: e.statusConvite == 'FALTA' ? AppColors.perigo : e.statusConvite == 'PRESENTE' ? AppColors.sucesso : context.textoSecund,
+                              AppAvatar(
+                                name: e.nome,
+                                size: 38,
+                                accentColor:
+                                    isFalta ? AppColors.perigo : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  e.nome,
+                                  style: AppTextStyles.body(
+                                    color: isFalta
+                                        ? AppColors.perigo
+                                        : context.textoPrimario,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                               const SizedBox(width: 8),
-                              Expanded(child: Text(e.nome, style: AppTextStyles.body(), overflow: TextOverflow.ellipsis)),
-                              const SizedBox(width: 8),
-                              Text(e.funcao, style: AppTextStyles.bodySmall(color: context.textoSecund)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: context.bgSubtle,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  e.funcao,
+                                  style: AppTextStyles.label(
+                                    color: context.textoSecund,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                        )).toList(),
-                      ),
+                        );
+                      }),
                     ],
                   ),
                 );
@@ -511,18 +783,21 @@ class _CardMinisterioInternoState extends State<_CardMinisterioInterno> {
           ),
           if (chaves.length > 1)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(top: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  chaves.length > 5 ? 5 : chaves.length,
-                  (i) => Container(
-                    width: 4,
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                  chaves.length > 6 ? 6 : chaves.length,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: safePage == i ? 16 : 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _currentPage == i ? AppColors.acento : context.textoSecund.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(99),
+                      color: safePage == i
+                          ? context.corPrimaria
+                          : context.textoMuted.withValues(alpha: 0.25),
                     ),
                   ),
                 ),
@@ -532,24 +807,7 @@ class _CardMinisterioInternoState extends State<_CardMinisterioInterno> {
       ),
     );
   }
-
-  IconData _getFuncaoIcon(String funcao) {
-    final f = funcao.toLowerCase();
-    if (f.contains('vocal') || f.contains('voz') || f.contains('ministro')) return PhosphorIconsBold.microphone;
-    if (f.contains('violão') || f.contains('guitarra')) return PhosphorIconsBold.guitar;
-    if (f.contains('baixo')) return PhosphorIconsBold.guitar;
-    if (f.contains('teclado') || f.contains('piano')) return PhosphorIconsBold.musicNotes;
-    if (f.contains('bateria')) return PhosphorIconsBold.musicNotesSimple;
-    if (f.contains('mídia') || f.contains('projetor')) return PhosphorIconsBold.monitor;
-    if (f.contains('som') || f.contains('mesa')) return PhosphorIconsBold.speakerHigh;
-    if (f.contains('transmissão') || f.contains('câmera')) return PhosphorIconsBold.videoCamera;
-    if (f.contains('recepção') || f.contains('boas vindas')) return PhosphorIconsBold.handWaving;
-    if (f.contains('infantil') || f.contains('criança')) return PhosphorIconsBold.baby;
-    if (f.contains('intercessão') || f.contains('oração')) return PhosphorIconsBold.handsPraying;
-    return PhosphorIconsBold.user;
-  }
 }
-
 
 // ─── Próximo Evento Card ─────────────────────────────────────────────────────
 class _ProximoEventoCard extends StatefulWidget {
@@ -572,165 +830,194 @@ class _ProximoEventoCardState extends State<_ProximoEventoCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.acento.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.acento.withValues(alpha: 0.2)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          widget.atividades.when(
-            data: (lista) {
-              if (lista.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(18),
+      child: widget.atividades.when(
+        data: (lista) {
+          if (lista.isEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(children: [
-                          const Icon(PhosphorIconsBold.star, color: AppColors.acento, size: 16),
-                          const SizedBox(width: 6),
-                          Text('Agenda da Igreja', style: AppTextStyles.label(color: AppColors.acento)),
-                        ]),
-                      ],
+                    Icon(
+                      PhosphorIconsFill.calendarStar,
+                      color: context.corPrimaria,
+                      size: 20,
                     ),
-                    const SizedBox(height: 12),
-                    Text('Nenhum evento próximo.', style: AppTextStyles.body()),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Agenda da Igreja',
+                      style: AppTextStyles.subheading(
+                        color: context.textoPrimario,
+                      ),
+                    ),
                   ],
-                );
-              }
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Nenhum evento próximo programado.',
+                  style: AppTextStyles.body(color: context.textoSecund),
+                ),
+              ],
+            );
+          }
 
-              // Agrupa por Dia
-              final Map<String, List<Map<String, dynamic>>> porDia = {};
-              for (var e in lista) {
-                final data = e['data'] as DateTime;
-                final key = DateFormat('yyyy-MM-dd').format(data);
-                porDia.putIfAbsent(key, () => []).add(e);
-              }
-              final dias = porDia.keys.toList();
-              
-              // Calcula a altura ideal com base no dia atual
-              final eventosDoDiaAtual = porDia[dias[_currentPage]]?.length ?? 0;
-              final double alturaCalculada = (eventosDoDiaAtual * 52.0) + 10;
+          final Map<String, List<Map<String, dynamic>>> porDia = {};
+          for (var e in lista) {
+            final data = e['data'] as DateTime;
+            final key = DateFormat('yyyy-MM-dd').format(data);
+            porDia.putIfAbsent(key, () => []).add(e);
+          }
+          final dias = porDia.keys.toList();
+          final safePage = _currentPage.clamp(0, dias.length - 1);
+          final eventosDoDiaAtual = porDia[dias[safePage]]?.length ?? 0;
+          final double alturaCalculada = (eventosDoDiaAtual * 62.0) + 6;
 
-              return Column(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(children: [
-                        const Icon(PhosphorIconsBold.star, color: AppColors.acento, size: 16),
-                        const SizedBox(width: 6),
-                        Text('Agenda da Igreja', style: AppTextStyles.label(color: AppColors.acento)),
-                      ]),
-                      if (dias.isNotEmpty)
-                        _buildTagHeader(porDia[dias[_currentPage]]!.first['data'] as DateTime),
+                      Icon(
+                        PhosphorIconsFill.calendarStar,
+                        color: context.corPrimaria,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Agenda da Igreja',
+                        style: AppTextStyles.subheading(
+                          color: context.textoPrimario,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    height: alturaCalculada,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: dias.length,
-                      onPageChanged: (v) => setState(() => _currentPage = v),
-                      itemBuilder: (context, idx) {
-                        final diaKey = dias[idx];
-                        final eventosDoDia = porDia[diaKey]!;
-                        
-                        // Tag agora é exibida no header (topo direito)
-
-                        return SingleChildScrollView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          child: Column(
-                            children: eventosDoDia.map((e) {
-                              final item = e['item'] as AgendaItem;
-                              final data = e['data'] as DateTime;
-                              final dataStr = DateFormat('dd/MM (EEEE)', 'pt_BR').format(data);
-
-                              IconData icone = PhosphorIconsBold.church;
-                              Color cor = AppColors.acento;
-                              if (item.tipo == TipoAgenda.evento) {
-                                icone = PhosphorIconsBold.calendarStar;
-                                cor = const Color(0xFFF59E0B);
-                              } else if (item.tipo == TipoAgenda.reuniao) {
-                                icone = PhosphorIconsBold.usersThree;
-                                cor = AppColors.acentoAzul;
-                              }
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: cor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(icone, color: cor, size: 20),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                              '${item.titulo} (${item.horario})', 
-                                              style: AppTextStyles.body(color: context.textoPrimario).copyWith(fontWeight: FontWeight.bold),
-                                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                                          const SizedBox(height: 2),
-                                          Text(dataStr, style: AppTextStyles.bodySmall(color: context.textoSecund)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
+                  if (dias.isNotEmpty)
+                    _buildTagHeader(
+                      context,
+                      porDia[dias[safePage]]!.first['data'] as DateTime,
                     ),
-                  ),
-                  if (dias.length > 1)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        dias.length > 5 ? 5 : dias.length,
-                        (i) => Container(
-                          width: 4,
-                          height: 4,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentPage == i ? AppColors.acento : context.textoSecund.withValues(alpha: 0.2),
-                          ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                height: alturaCalculada,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: dias.length,
+                  onPageChanged: (v) => setState(() => _currentPage = v),
+                  itemBuilder: (context, idx) {
+                    final diaKey = dias[idx];
+                    final eventosDoDia = porDia[diaKey]!;
+
+                    return SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Column(
+                        children: eventosDoDia.map((e) {
+                          final item = e['item'] as AgendaItem;
+                          final data = e['data'] as DateTime;
+                          final dataStr =
+                              DateFormat('dd/MM (EEEE)', 'pt_BR').format(data);
+
+                          IconData icone = PhosphorIconsBold.church;
+                          Color cor = context.corPrimaria;
+                          if (item.tipo == TipoAgenda.evento) {
+                            icone = PhosphorIconsBold.calendarStar;
+                            cor = AppColors.alerta;
+                          } else if (item.tipo == TipoAgenda.reuniao) {
+                            icone = PhosphorIconsBold.usersThree;
+                            cor = AppColors.acentoAzul;
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: cor.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Icon(icone, color: cor, size: 22),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.titulo,
+                                        style: AppTextStyles.body(
+                                          color: context.textoPrimario,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '$dataStr • ${item.horario}',
+                                        style: AppTextStyles.bodySmall(
+                                          color: context.textoSecund,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (dias.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      dias.length > 6 ? 6 : dias.length,
+                      (i) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: safePage == i ? 16 : 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(99),
+                          color: safePage == i
+                              ? context.corPrimaria
+                              : context.textoMuted.withValues(alpha: 0.25),
                         ),
                       ),
                     ),
-                ],
-              );
-            },
-            loading: () => const _ShimmerBox(height: 90),
-            error: (_, __) => Text('Erro ao carregar agenda.', style: AppTextStyles.body()),
-          ),
-        ],
+                  ),
+                ),
+            ],
+          );
+        },
+        loading: () => const _ShimmerBox(height: 100),
+        error: (_, __) => Text(
+          'Erro ao carregar agenda.',
+          style: AppTextStyles.body(color: AppColors.perigo),
+        ),
       ),
     );
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 class _ShimmerBox extends StatelessWidget {
   final double height;
   const _ShimmerBox({required this.height});
@@ -740,8 +1027,8 @@ class _ShimmerBox extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: context.bgBorda,
-        borderRadius: BorderRadius.circular(8),
+        color: context.bgSubtle,
+        borderRadius: BorderRadius.circular(18),
       ),
     );
   }
@@ -767,137 +1054,168 @@ class _JejumDoDiaCardState extends ConsumerState<_JejumDoDiaCard> {
   @override
   Widget build(BuildContext context) {
     final jejumAsync = ref.watch(proximosJejunsProvider);
+    const jejumColor = Color(0xFFDB2777);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? context.bgBorda
-              : AppColors.bgBordaLight,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          jejumAsync.when(
-            data: (lista) {
-              if (lista.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(18),
+      child: jejumAsync.when(
+        data: (lista) {
+          if (lista.isEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(children: [
-                          const Icon(PhosphorIconsBold.drop, color: Color(0xFFE83E8C), size: 16),
-                          const SizedBox(width: 6),
-                          Text('Escala de Jejum', style: AppTextStyles.label(color: const Color(0xFFE83E8C))),
-                        ]),
-                      ],
+                    const Icon(
+                      PhosphorIconsFill.handsPraying,
+                      color: jejumColor,
+                      size: 20,
                     ),
-                    const SizedBox(height: 12),
-                    Text('Nenhum jejum escalado.', style: AppTextStyles.body()),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Escala de Jejum',
+                      style: AppTextStyles.subheading(
+                        color: context.textoPrimario,
+                      ),
+                    ),
                   ],
-                );
-              }
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Nenhum jejum escalado nos próximos dias.',
+                  style: AppTextStyles.body(color: context.textoSecund),
+                ),
+              ],
+            );
+          }
 
-              final Map<String, List<EscalaItem>> grupos = {};
-              for (var e in lista) {
-                grupos.putIfAbsent(e.data, () => []).add(e);
-              }
-              final chaves = grupos.keys.toList()..sort();
-              
-              // Calcula a altura ideal com base no dia atual
-              final eventosDoDiaAtual = grupos[chaves[_currentPage]]?.length ?? 0;
-              final double alturaCalculada = (eventosDoDiaAtual * 36.0) + 40;
+          final Map<String, List<EscalaItem>> grupos = {};
+          for (var e in lista) {
+            grupos.putIfAbsent(e.data, () => []).add(e);
+          }
+          final chaves = grupos.keys.toList()..sort();
+          final safePage = _currentPage.clamp(0, chaves.length - 1);
+          final eventosDoDiaAtual = grupos[chaves[safePage]]?.length ?? 0;
+          final double alturaCalculada = (eventosDoDiaAtual * 48.0) + 38;
 
-              return Column(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(children: [
-                        const Icon(PhosphorIconsBold.drop, color: Color(0xFFE83E8C), size: 16),
-                        const SizedBox(width: 6),
-                        Text('Escala de Jejum', style: AppTextStyles.label(color: const Color(0xFFE83E8C))),
-                      ]),
-                      if (lista.isNotEmpty)
-                        _buildTagHeader(DateTime.parse(chaves[_currentPage])),
+                      const Icon(
+                        PhosphorIconsFill.handsPraying,
+                        color: jejumColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Escala de Jejum',
+                        style: AppTextStyles.subheading(
+                          color: context.textoPrimario,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    height: alturaCalculada,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: chaves.length,
-                      onPageChanged: (v) => setState(() => _currentPage = v),
-                      itemBuilder: (context, idx) {
-                        final chave = chaves[idx];
-                        final itens = grupos[chave]!;
-                        final data = DateTime.parse(chave);
-                        final dataStr = DateFormat('dd/MM (EEEE)', 'pt_BR').format(data);
-                        
-                        // Tag agora é exibida no header (topo direito)
+                  _buildTagHeader(context, DateTime.parse(chaves[safePage])),
+                ],
+              ),
+              const SizedBox(height: 12),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                height: alturaCalculada,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: chaves.length,
+                  onPageChanged: (v) => setState(() => _currentPage = v),
+                  itemBuilder: (context, idx) {
+                    final chave = chaves[idx];
+                    final itens = grupos[chave]!;
+                    final data = DateTime.parse(chave);
+                    final dataStr =
+                        DateFormat('dd/MM (EEEE)', 'pt_BR').format(data);
 
-                        return SingleChildScrollView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(dataStr, style: AppTextStyles.monoSmall(color: context.textoSecund)),
-                              const SizedBox(height: 12),
-                              ...itens.map((e) => Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
+                    return SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            dataStr,
+                            style: AppTextStyles.bodySmall(
+                              color: context.textoSecund,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ...itens.map((e) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
                                 child: Row(
                                   children: [
-                                    const Icon(PhosphorIconsBold.drop, size: 16, color: Color(0xFFE83E8C)),
-                                    const SizedBox(width: 10),
-                                    Text(e.nome, style: AppTextStyles.body(color: context.textoPrimario)),
+                                    AppAvatar(
+                                      name: e.nome,
+                                      size: 36,
+                                      accentColor: jejumColor,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        e.nome,
+                                        style: AppTextStyles.body(
+                                          color: context.textoPrimario,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               )),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (chaves.length > 1)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        chaves.length > 5 ? 5 : chaves.length,
-                        (i) => Container(
-                          width: 4,
-                          height: 4,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentPage == i ? const Color(0xFFE83E8C) : context.textoSecund.withValues(alpha: 0.2),
-                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (chaves.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      chaves.length > 6 ? 6 : chaves.length,
+                      (i) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: safePage == i ? 16 : 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(99),
+                          color: safePage == i
+                              ? jejumColor
+                              : context.textoMuted.withValues(alpha: 0.25),
                         ),
                       ),
                     ),
-                ],
-              );
-            },
-            loading: () => const _ShimmerBox(height: 100),
-            error: (_, __) => Text('Erro ao carregar.', style: AppTextStyles.body()),
-          ),
-        ],
+                  ),
+                ),
+            ],
+          );
+        },
+        loading: () => const _ShimmerBox(height: 100),
+        error: (_, __) => Text(
+          'Erro ao carregar escala de jejum.',
+          style: AppTextStyles.body(color: AppColors.perigo),
+        ),
       ),
     );
   }
 }
 
-
-// ─── Relatório de Escalas ────────────────────────────────────────────────────────
+// ─── Relatório de Escalas ─────────────────────────────────────────────────────
 class _RelatorioEscalasCard extends ConsumerWidget {
   const _RelatorioEscalasCard();
 
@@ -906,82 +1224,101 @@ class _RelatorioEscalasCard extends ConsumerWidget {
     final escalaAsync = ref.watch(escalaDoMesProvider);
     final prefs = ref.watch(homePreferencesProvider);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? context.bgBorda
-              : AppColors.bgBordaLight,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            const Icon(PhosphorIconsBold.chartBar,
-                color: Color(0xFFF59E0B), size: 16),
-            const SizedBox(width: 6),
-            Text('Relatório de Escalas (Mês Atual)',
-                style: AppTextStyles.label(color: const Color(0xFFF59E0B))),
-          ]),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                PhosphorIconsFill.chartBar,
+                color: context.corPrimaria,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Participações no Mês',
+                style: AppTextStyles.subheading(color: context.textoPrimario),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           escalaAsync.when(
             data: (lista) {
               final listaFiltrada = prefs.ministeriosVisiveis.isEmpty
                   ? lista
-                  : lista.where((e) => prefs.ministeriosVisiveis.contains(e.ministerio)).toList();
+                  : lista
+                      .where(
+                          (e) => prefs.ministeriosVisiveis.contains(e.ministerio))
+                      .toList();
 
               if (listaFiltrada.isEmpty) {
-                return Text('Nenhuma escala gerada no mês.',
-                    style: AppTextStyles.body());
+                return Text(
+                  'Nenhuma escala gerada no mês.',
+                  style: AppTextStyles.body(color: context.textoSecund),
+                );
               }
-              
+
               final Map<String, int> contagem = {};
               for (var e in listaFiltrada) {
                 if (e.nome != '[FALTA]' && e.funcao != 'Jejum') {
                   contagem[e.nome] = (contagem[e.nome] ?? 0) + 1;
                 }
               }
-              
+
               if (contagem.isEmpty) {
-                return Text('Nenhum membro escalado.', style: AppTextStyles.body());
+                return Text(
+                  'Nenhum membro escalado.',
+                  style: AppTextStyles.body(color: context.textoSecund),
+                );
               }
 
               final ranking = contagem.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value)); // Maior para o menor
+                ..sort((a, b) => b.value.compareTo(a.value));
 
               return ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: ranking.length,
-                separatorBuilder: (_, __) => Divider(height: 16, color: context.bgBorda),
+                separatorBuilder: (_, __) =>
+                    Divider(height: 18, color: context.bgBorda),
                 itemBuilder: (context, i) {
                   final item = ranking[i];
                   return Row(
                     children: [
-                      Container(
-                        width: 24,
-                        alignment: Alignment.center,
-                        child: Text('${i + 1}º',
-                            style: AppTextStyles.monoSmall(color: context.textoSecund)),
+                      SizedBox(
+                        width: 28,
+                        child: Text(
+                          '${i + 1}º',
+                          style: AppTextStyles.monoSmall(
+                            color: context.textoSecund,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      AppAvatar(name: item.key, size: 34),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Text(item.key,
-                            style: AppTextStyles.body(color: context.textoPrimario)),
+                        child: Text(
+                          item.key,
+                          style: AppTextStyles.body(
+                            color: context.textoPrimario,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: AppColors.acento.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          color: context.acentoSuave,
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '${item.value}x',
-                          style: AppTextStyles.label(color: AppColors.acento),
+                          style: AppTextStyles.label(color: context.acentoTexto),
                         ),
                       ),
                     ],
@@ -989,14 +1326,19 @@ class _RelatorioEscalasCard extends ConsumerWidget {
                 },
               );
             },
-            loading: () => const SizedBox(
-              height: 30,
+            loading: () => SizedBox(
+              height: 36,
               child: Center(
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppColors.acento)),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: context.corPrimaria,
+                ),
+              ),
             ),
-            error: (_, __) =>
-                Text('Erro ao carregar.', style: AppTextStyles.body()),
+            error: (_, __) => Text(
+              'Erro ao carregar participações.',
+              style: AppTextStyles.body(color: AppColors.perigo),
+            ),
           ),
         ],
       ),
@@ -1004,7 +1346,7 @@ class _RelatorioEscalasCard extends ConsumerWidget {
   }
 }
 
-Widget _buildTagHeader(DateTime data) {
+Widget _buildTagHeader(BuildContext context, DateTime data) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final tomorrow = today.add(const Duration(days: 1));
@@ -1019,12 +1361,19 @@ Widget _buildTagHeader(DateTime data) {
 
   if (tag == null) return const SizedBox();
 
-  return Text(
-    tag,
-    style: AppTextStyles.monoSmall(color: AppColors.acento).copyWith(fontWeight: FontWeight.bold),
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: context.acentoSuave,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      tag,
+      style: AppTextStyles.label(color: context.acentoTexto)
+          .copyWith(fontSize: 12),
+    ),
   );
 }
-
 
 // Navegação global (herdável via InheritedWidget simplificado)
 class AppNavigation extends InheritedWidget {

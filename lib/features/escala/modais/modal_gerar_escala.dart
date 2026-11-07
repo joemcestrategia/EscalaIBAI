@@ -66,7 +66,7 @@ class _ModalGerarEscalaState extends ConsumerState<ModalGerarEscala> {
                 Expanded(
                   child: DropdownButtonFormField<int>(
                     initialValue: _mes,
-                    style: AppTextStyles.body(),
+                    style: AppTextStyles.body(color: context.textoPrimario),
                     dropdownColor: context.bgCard,
                     decoration: const InputDecoration(labelText: 'Mês'),
                     items: List.generate(
@@ -95,7 +95,7 @@ class _ModalGerarEscalaState extends ConsumerState<ModalGerarEscala> {
                 Expanded(
                   child: DropdownButtonFormField<int>(
                     initialValue: _ano,
-                    style: AppTextStyles.body(),
+                    style: AppTextStyles.body(color: context.textoPrimario),
                     dropdownColor: context.bgCard,
                     decoration: const InputDecoration(labelText: 'Ano'),
                     items: List.generate(
@@ -114,7 +114,7 @@ class _ModalGerarEscalaState extends ConsumerState<ModalGerarEscala> {
               ministeriosAsync.when(
                 data: (mins) => DropdownButtonFormField<String>(
                   initialValue: _ministerioAlvo,
-                  style: AppTextStyles.body(),
+                  style: AppTextStyles.body(color: context.textoPrimario),
                   dropdownColor: context.bgCard,
                   decoration: const InputDecoration(
                       labelText: 'Ministério (opcional — todos se vazio)'),

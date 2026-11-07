@@ -116,13 +116,6 @@ class _ModalEditEscalaState extends ConsumerState<ModalEditEscala> {
                             initialDate: _data,
                             firstDate: DateTime(2024),
                             lastDate: DateTime(2030),
-                            builder: (c, w) => Theme(
-                              data: ThemeData.dark().copyWith(
-                                colorScheme: const ColorScheme.dark(
-                                    primary: AppColors.acento),
-                              ),
-                              child: w!,
-                            ),
                           );
                           if (d != null) setState(() => _data = d);
                         },
@@ -142,13 +135,6 @@ class _ModalEditEscalaState extends ConsumerState<ModalEditEscala> {
                           final t = await showTimePicker(
                             context: context,
                             initialTime: _hora,
-                            builder: (c, w) => Theme(
-                              data: ThemeData.dark().copyWith(
-                                colorScheme: const ColorScheme.dark(
-                                    primary: AppColors.acento),
-                              ),
-                              child: w!,
-                            ),
                           );
                           if (t != null) setState(() => _hora = t);
                         },
@@ -265,9 +251,17 @@ class _ModalEditEscalaState extends ConsumerState<ModalEditEscala> {
                             children: funcsDisponiveis.map((f) {
                               final selecionada = _funcoesSel.contains(f);
                               return FilterChip(
-                                label: Text(f, style: AppTextStyles.bodySmall(
-                                  color: selecionada ? Colors.black : context.textoPrimario
-                                )),
+                                label: Text(
+                                  f,
+                                  style: AppTextStyles.bodySmall(
+                                    color: selecionada
+                                        ? Colors.white
+                                        : context.textoPrimario,
+                                    fontWeight: selecionada
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
                                 selected: selecionada,
                                 onSelected: (selected) {
                                   setState(() {
@@ -280,12 +274,14 @@ class _ModalEditEscalaState extends ConsumerState<ModalEditEscala> {
                                   });
                                 },
                                 selectedColor: AppColors.acento,
-                                backgroundColor: context.bgBorda.withValues(alpha: 0.3),
-                                checkmarkColor: Colors.black,
+                                backgroundColor: context.bgSubtle,
+                                checkmarkColor: Colors.white,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(12),
                                   side: BorderSide(
-                                    color: selecionada ? AppColors.acento : context.bgBorda,
+                                    color: selecionada
+                                        ? AppColors.acento
+                                        : context.bgBorda,
                                   ),
                                 ),
                               );
