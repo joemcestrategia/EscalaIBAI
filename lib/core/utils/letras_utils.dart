@@ -11,7 +11,63 @@ import '../utils/cors_client.dart';
 /// Troque aqui para mudar em todo o app.
 const String kFonteCifra = 'letras'; // 'letras' | 'cifraclub'
 
+class InspecaoVideoYoutube {
+  final String titulo;
+  final String artista;
+  final String duracao;
+  final bool oficialYoutube;
+  final ResultadoCifraClub? cifraPrincipal;
+  final List<ResultadoCifraClub> opcoesCifra;
+
+  const InspecaoVideoYoutube({
+    required this.titulo,
+    required this.artista,
+    this.duracao = '',
+    this.oficialYoutube = false,
+    this.cifraPrincipal,
+    this.opcoesCifra = const [],
+  });
+}
+
 class LetrasUtils {
+  // ─── Extração de VideoId e Formatação de Duração ─────────────────────────
+  static String? extrairVideoId(String url) {
+    if (url.trim().isEmpty) return null;
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return null;
+    if (uri.queryParameters.containsKey('v')) {
+      final v = uri.queryParameters['v'];
+      if (v != null && v.isNotEmpty) return v;
+    }
+    if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.first;
+    }
+    final shortsIdx = uri.pathSegments.indexOf('shorts');
+    if (shortsIdx != -1 && uri.pathSegments.length > shortsIdx + 1) {
+      return uri.pathSegments[shortsIdx + 1];
+    }
+    return null;
+  }
+
+  static String formatarDuracao(String raw) {
+    final t = raw.trim().split('.').first;
+    if (t.isEmpty) return '';
+    final partes = t.split(':');
+    if (partes.length == 3) {
+      final h = int.tryParse(partes[0]) ?? 0;
+      final m = (int.tryParse(partes[1]) ?? 0).toString().padLeft(2, '0');
+      final s = (int.tryParse(partes[2]) ?? 0).toString().padLeft(2, '0');
+      if (h > 0) return '${h.toString().padLeft(2, '0')}:$m:$s';
+      return '$m:$s';
+    }
+    if (partes.length == 2) {
+      final m = (int.tryParse(partes[0]) ?? 0).toString().padLeft(2, '0');
+      final s = (int.tryParse(partes[1]) ?? 0).toString().padLeft(2, '0');
+      return '$m:$s';
+    }
+    return t;
+  }
+
   // ─── Formatação para URL ─────────────────────────────────────────────────
   static String formatarParaUrl(String text) {
     var s = text.toLowerCase().trim();
@@ -37,27 +93,144 @@ class LetrasUtils {
     return 'https://www.cifraclub.com.br/$a/$t/';
   }
 
+  /// Resolve a URL real no CifraClub (respeitando slugs especiais como "coral-kemuel" ou "a-ele-gloria"),
+  /// caindo no montarUrl padrão caso offline.
+  static Future<String> montarUrlInteligente(
+    String tipo,
+    String titulo,
+    String artista,
+  ) async {
+    final hits = await consultarCifraClub(titulo: titulo, artista: artista);
+    if (hits.isNotEmpty) {
+      return hits.first.montarUrl(tipo);
+    }
+    return montarUrl(tipo, titulo, artista);
+  }
+
   // ─── Verifica existência via HTTP HEAD ───────────────────────────────────
   static Future<String?> _urlExiste(String urlStr) async {
-    if (urlStr.contains('.br//') || urlStr.endsWith('.br/')) return null; // Evita homepages
+    if (urlStr.contains('.br//') || urlStr.endsWith('.br/')) return null;
     if (kIsWeb) return urlStr;
     try {
       final uri = Uri.parse(urlStr);
       final request = http.Request('HEAD', uri)
-        ..followRedirects = true // SEGUE O REDIRECT PARA PEGAR A URL FINAL COM OS NÚMEROS!
+        ..followRedirects = true
         ..maxRedirects = 3
         ..headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
-      final response = await http.Client().send(request).timeout(const Duration(seconds: 8));
+      final response = await http
+          .Client()
+          .send(request)
+          .timeout(const Duration(seconds: 8));
       final finalUrl = response.request?.url.toString() ?? urlStr;
-      debugPrint('[LetrasUtils] HEAD finalizado → \$finalUrl');
+      debugPrint('[LetrasUtils] HEAD finalizado → $finalUrl');
       if (response.statusCode >= 200 && response.statusCode < 400) {
         return finalUrl;
       }
       return null;
     } catch (e) {
       debugPrint('[LetrasUtils] HEAD falhou: $e');
-      return null; 
+      return null;
     }
+  }
+
+  // ─── Inspeção completa no Cadastro/Edição de Música ──────────────────────
+  /// Extrai metadados oficiais do YouTube (`video.musicData` / Content ID) e já pré-localiza a cifra no CifraClub.
+  static Future<InspecaoVideoYoutube> inspecionarVideoYoutube({
+    String? videoId,
+    required String tituloBruto,
+    required String canalBruto,
+    String duracaoBruta = '',
+  }) async {
+    TituloArtista extraido = extrairDoTituloYt(
+      tituloYt: tituloBruto,
+      nomeCanal: canalBruto,
+    );
+    String duracao = formatarDuracao(duracaoBruta);
+
+    if (videoId != null && videoId.isNotEmpty) {
+      yt.YoutubeExplode? ytClient;
+      try {
+        ytClient = yt.YoutubeExplode(
+          httpClient: yt.YoutubeHttpClient(CorsClient()),
+        );
+        final video =
+            await ytClient.videos.get(videoId).timeout(kExternalTimeout);
+
+        if (duracao.isEmpty && video.duration != null) {
+          duracao = formatarDuracao(video.duration.toString());
+        }
+
+        // 1. Prioridade máxima: Tag Oficial de Música do YouTube (Content ID / musicData)
+        final oficiais = extrairDeMusicDataYt(video.musicData);
+        if (oficiais.isNotEmpty) {
+          extraido = oficiais.first;
+        } else {
+          // 2. Canal Topic / Descrição / Título do vídeo
+          extraido = extrairDoTituloYt(
+            tituloYt: video.title,
+            nomeCanal: video.author,
+            descricao: video.description,
+          );
+        }
+      } catch (e) {
+        debugPrint('[LetrasUtils] inspecionarVideoYoutube falhou no YT: $e');
+      } finally {
+        ytClient?.close();
+      }
+    }
+
+    // 3. Pré-valida no índice oficial do CifraClub
+    var opcoes = await consultarCifraClub(
+      titulo: extraido.titulo,
+      artista: extraido.artista,
+    );
+
+    // Se a heurística inverteu artista/música em vídeo não-oficial, tenta invertido
+    if (opcoes.isEmpty &&
+        !extraido.oficialYoutube &&
+        extraido.artista.isNotEmpty) {
+      opcoes = await consultarCifraClub(
+        titulo: extraido.artista,
+        artista: extraido.titulo,
+      );
+      if (opcoes.isNotEmpty) {
+        extraido = TituloArtista(
+          titulo: limparTitulo(opcoes.first.titulo),
+          artista: opcoes.first.artista,
+          origem: 'cifraclub_busca',
+        );
+      }
+    }
+
+    // Se ainda não achou e não veio da tag oficial, tenta Deezer para descobrir o nome limpo
+    if (opcoes.isEmpty && !extraido.oficialYoutube) {
+      final deezer =
+          await consultarDeezer('${extraido.titulo} ${extraido.artista}'.trim());
+      if (deezer != null) {
+        extraido = deezer;
+        opcoes = await consultarCifraClub(
+          titulo: deezer.titulo,
+          artista: deezer.artista,
+        );
+      }
+    }
+
+    final principal = opcoes.isNotEmpty ? opcoes.first : null;
+    final tituloFinal = extraido.oficialYoutube
+        ? extraido.titulo
+        : (principal != null ? limparTitulo(principal.titulo) : extraido.titulo);
+    final artistaFinal = extraido.oficialYoutube && extraido.artista.isNotEmpty
+        ? extraido.artista
+        : (principal != null ? principal.artista : extraido.artista);
+
+    return InspecaoVideoYoutube(
+      titulo: tituloFinal,
+      artista: artistaFinal,
+      duracao: duracao,
+      oficialYoutube: extraido.oficialYoutube,
+      cifraPrincipal: principal,
+      opcoesCifra: opcoes.take(4).toList(),
+    );
   }
 
   // ─── Pipeline de resolução ───────────────────────────────────────────────
@@ -76,8 +249,12 @@ class LetrasUtils {
       final cached = await repo.getByVideoId(videoId);
       if (cached != null && cached.nomeCifra.isNotEmpty) {
         debugPrint('[Pipeline] Camada 1 (cache) → ${cached.nomeCifra}');
-        final url = montarUrl(tipo, cached.nomeCifra, cached.artistaCifra);
         if (cached.confirmado) {
+          final url = await montarUrlInteligente(
+            tipo,
+            cached.nomeCifra,
+            cached.artistaCifra,
+          );
           return ResolucaoCifra(
             titulo: cached.nomeCifra,
             artista: cached.artistaCifra,
@@ -86,35 +263,84 @@ class LetrasUtils {
             confirmado: true,
           );
         }
-        // Não confirmado: usa como sugestão mas continua o pipeline
       }
     }
 
-    // ── Camada 2: Metadados YouTube (via youtube_explode) ────────────────
+    // ── Camada 2: Tag Oficial `musicData` e Metadados YouTube ────────────
     TituloArtista? extraido;
     if (videoId != null && videoId.isNotEmpty) {
+      yt.YoutubeExplode? ytClient;
       try {
-        final ytClient = yt.YoutubeExplode(
-            httpClient: yt.YoutubeHttpClient(CorsClient()));
-        final video = await ytClient.videos
-            .get(videoId)
-            .timeout(kExternalTimeout);
-        ytClient.close();
-        extraido = extrairDoTituloYt(
-          tituloYt: video.title,
-          nomeCanal: video.author,
-          descricao: video.description,
+        ytClient = yt.YoutubeExplode(
+          httpClient: yt.YoutubeHttpClient(CorsClient()),
         );
-        debugPrint('[Pipeline] Camada 2 (YouTube) → $extraido');
-        if (extraido.valido) {
-          final url = montarUrl(tipo, extraido.titulo, extraido.artista);
-          final finalUrl = await _urlExiste(url);
+        final video =
+            await ytClient.videos.get(videoId).timeout(kExternalTimeout);
+
+        // 2a. Tag Oficial de Música do YouTube (Content ID / musicData)
+        final faixasOficiais = extrairDeMusicDataYt(video.musicData);
+        if (faixasOficiais.isNotEmpty) {
+          extraido = faixasOficiais.first;
+          debugPrint(
+            '[Pipeline] Camada 2a (Tag Oficial musicData) → $extraido',
+          );
+
+          final hitsCifra = await consultarCifraClub(
+            titulo: extraido.titulo,
+            artista: extraido.artista,
+          );
+
+          // Se for medley com múltiplas faixas no Content ID, monta sugestões das demais faixas
+          final sugestoesMedley = <TituloArtista>[];
+          if (faixasOficiais.length > 1) {
+            for (final f in faixasOficiais) {
+              final fHits = await consultarCifraClub(
+                titulo: f.titulo,
+                artista: f.artista,
+              );
+              if (fHits.isNotEmpty) {
+                sugestoesMedley.add(
+                  fHits.first.toTituloArtista(
+                    origem: 'descricao_youtube',
+                    oficialYoutube: true,
+                  ),
+                );
+              } else {
+                sugestoesMedley.add(f);
+              }
+            }
+          }
+
+          if (hitsCifra.isNotEmpty) {
+            final top = hitsCifra.first;
+            await repo.upsert(CifraCache(
+              videoId: videoId,
+              nomeCifra: extraido.titulo,
+              artistaCifra:
+                  extraido.artista.isNotEmpty ? extraido.artista : top.artista,
+              origem: 'descricao_youtube',
+              confirmado: false,
+              updatedAt: DateTime.now(),
+            ));
+            return ResolucaoCifra(
+              titulo: top.titulo,
+              artista: top.artista,
+              url: top.montarUrl(tipo),
+              origem: 'descricao_youtube',
+              oficialYoutube: true,
+              sugestoes: sugestoesMedley.length > 1 ? sugestoesMedley : const [],
+            );
+          }
+
+          // Fallback HTTP HEAD caso o Solr oscile
+          final urlDireta = montarUrl(tipo, extraido.titulo, extraido.artista);
+          final finalUrl = await _urlExiste(urlDireta);
           if (finalUrl != null) {
             await repo.upsert(CifraCache(
               videoId: videoId,
               nomeCifra: extraido.titulo,
               artistaCifra: extraido.artista,
-              origem: extraido.origem,
+              origem: 'descricao_youtube',
               confirmado: false,
               updatedAt: DateTime.now(),
             ));
@@ -122,21 +348,134 @@ class LetrasUtils {
               titulo: extraido.titulo,
               artista: extraido.artista,
               url: finalUrl,
-              origem: extraido.origem,
-              confirmado: false,
+              origem: 'descricao_youtube',
+              oficialYoutube: true,
             );
+          }
+        } else {
+          // 2b. Sem musicData: extrai de Canal Topic / Descrição / Título do YouTube
+          extraido = extrairDoTituloYt(
+            tituloYt: video.title,
+            nomeCanal: video.author,
+            descricao: video.description,
+          );
+          debugPrint('[Pipeline] Camada 2b (YouTube título/desc) → $extraido');
+          if (extraido.valido) {
+            final hitsCifra = await consultarCifraClub(
+              titulo: extraido.titulo,
+              artista: extraido.artista,
+            );
+            if (hitsCifra.isNotEmpty) {
+              final top = hitsCifra.first;
+              await repo.upsert(CifraCache(
+                videoId: videoId,
+                nomeCifra: limparTitulo(top.titulo),
+                artistaCifra: top.artista,
+                origem: extraido.origem,
+                confirmado: false,
+                updatedAt: DateTime.now(),
+              ));
+              return ResolucaoCifra(
+                titulo: top.titulo,
+                artista: top.artista,
+                url: top.montarUrl(tipo),
+                origem: extraido.origem,
+                oficialYoutube: extraido.oficialYoutube,
+              );
+            }
+
+            final url = montarUrl(tipo, extraido.titulo, extraido.artista);
+            final finalUrl = await _urlExiste(url);
+            if (finalUrl != null) {
+              await repo.upsert(CifraCache(
+                videoId: videoId,
+                nomeCifra: extraido.titulo,
+                artistaCifra: extraido.artista,
+                origem: extraido.origem,
+                confirmado: false,
+                updatedAt: DateTime.now(),
+              ));
+              return ResolucaoCifra(
+                titulo: extraido.titulo,
+                artista: extraido.artista,
+                url: finalUrl,
+                origem: extraido.origem,
+                oficialYoutube: extraido.oficialYoutube,
+              );
+            }
           }
         }
       } catch (e) {
         debugPrint('[Pipeline] Camada 2 falhou: $e');
+      } finally {
+        ytClient?.close();
       }
     }
 
-    // ── Camada 3: Normalização do título sujo ────────────────────────────
+    // ── Camada 3: Busca direta no CifraClub + Normalização do título ─────
     final normalizado = extraido ??
-        TituloArtista(titulo: limparTitulo(titulo), artista: artista, origem: 'titulo_limpo');
+        TituloArtista(
+          titulo: limparTitulo(titulo),
+          artista: limparArtista(artista),
+          origem: 'titulo_limpo',
+        );
+
+    final hitsCamada3 = await consultarCifraClub(
+      titulo: normalizado.titulo,
+      artista: normalizado.artista,
+    );
+    if (hitsCamada3.isNotEmpty) {
+      final top = hitsCamada3.first;
+      debugPrint('[Pipeline] Camada 3 (CifraClub direto) → ${top.titulo}');
+      if (videoId != null && videoId.isNotEmpty) {
+        await repo.upsert(CifraCache(
+          videoId: videoId,
+          nomeCifra: limparTitulo(top.titulo),
+          artistaCifra: top.artista,
+          origem: 'titulo_limpo',
+          confirmado: false,
+          updatedAt: DateTime.now(),
+        ));
+      }
+      return ResolucaoCifra(
+        titulo: top.titulo,
+        artista: top.artista,
+        url: top.montarUrl(tipo),
+        origem: 'titulo_limpo',
+        oficialYoutube: normalizado.oficialYoutube,
+      );
+    }
+
+    // Tenta invertido no CifraClub (caso artista e música estejam trocados)
+    if (normalizado.artista.isNotEmpty) {
+      final hitsSwapped = await consultarCifraClub(
+        titulo: normalizado.artista,
+        artista: normalizado.titulo,
+      );
+      if (hitsSwapped.isNotEmpty) {
+        final top = hitsSwapped.first;
+        debugPrint('[Pipeline] Camada 3 (CifraClub swap) → ${top.titulo}');
+        if (videoId != null && videoId.isNotEmpty) {
+          await repo.upsert(CifraCache(
+            videoId: videoId,
+            nomeCifra: limparTitulo(top.titulo),
+            artistaCifra: top.artista,
+            origem: 'titulo_limpo_swapped',
+            confirmado: false,
+            updatedAt: DateTime.now(),
+          ));
+        }
+        return ResolucaoCifra(
+          titulo: top.titulo,
+          artista: top.artista,
+          url: top.montarUrl(tipo),
+          origem: 'titulo_limpo_swapped',
+        );
+      }
+    }
+
     final url3 = montarUrl(tipo, normalizado.titulo, normalizado.artista);
-    debugPrint('[Pipeline] Camada 3 (normalização) → $url3');
+    debugPrint('[Pipeline] Camada 3 (HEAD fallback) → $url3');
     final finalUrl3 = await _urlExiste(url3);
     if (finalUrl3 != null) {
       if (videoId != null && videoId.isNotEmpty) {
@@ -154,39 +493,38 @@ class LetrasUtils {
         artista: normalizado.artista,
         url: finalUrl3,
         origem: 'titulo_limpo',
-        confirmado: false,
       );
-    } else {
-      // Tenta inverter titulo e artista (caso a heuristica do Youtube tenha falhado)
-      final url3Swapped = montarUrl(tipo, normalizado.artista, normalizado.titulo);
-      debugPrint('[Pipeline] Camada 3 (swap) → $url3Swapped');
-      final finalUrl3Swapped = await _urlExiste(url3Swapped);
-      if (finalUrl3Swapped != null) {
+    }
+
+    // ── Camada 4: Deezer API → CifraClub ─────────────────────────────────
+    final queryDeezer = '${normalizado.titulo} ${normalizado.artista}'.trim();
+    debugPrint('[Pipeline] Camada 4 (Deezer) → query: $queryDeezer');
+    final deezer = await consultarDeezer(queryDeezer);
+    if (deezer != null) {
+      final hitsDeezer = await consultarCifraClub(
+        titulo: deezer.titulo,
+        artista: deezer.artista,
+      );
+      if (hitsDeezer.isNotEmpty) {
+        final top = hitsDeezer.first;
         if (videoId != null && videoId.isNotEmpty) {
           await repo.upsert(CifraCache(
             videoId: videoId,
-            nomeCifra: normalizado.artista, // invertido
-            artistaCifra: normalizado.titulo, // invertido
-            origem: 'titulo_limpo_swapped',
+            nomeCifra: limparTitulo(top.titulo),
+            artistaCifra: top.artista,
+            origem: 'catalogo_externo',
             confirmado: false,
             updatedAt: DateTime.now(),
           ));
         }
         return ResolucaoCifra(
-          titulo: normalizado.artista, // invertido
-          artista: normalizado.titulo, // invertido
-          url: finalUrl3Swapped,
-          origem: 'titulo_limpo_swapped',
-          confirmado: false,
+          titulo: top.titulo,
+          artista: top.artista,
+          url: top.montarUrl(tipo),
+          origem: 'catalogo_externo',
         );
       }
-    }
 
-    // ── Camada 4: Deezer API ─────────────────────────────────────────────
-    final queryDeezer = '${normalizado.titulo} ${normalizado.artista}'.trim();
-    debugPrint('[Pipeline] Camada 4 (Deezer) → query: $queryDeezer');
-    final deezer = await consultarDeezer(queryDeezer);
-    if (deezer != null) {
       final url4 = montarUrl(tipo, deezer.titulo, deezer.artista);
       final finalUrl4 = await _urlExiste(url4);
       if (finalUrl4 != null) {
@@ -205,7 +543,6 @@ class LetrasUtils {
           artista: deezer.artista,
           url: finalUrl4,
           origem: 'catalogo_externo',
-          confirmado: false,
         );
       }
     }
@@ -217,7 +554,11 @@ class LetrasUtils {
     debugPrint('[Pipeline] Camada 5 (fuzzy) → ${sugestoes.length} sugestões');
     if (sugestoes.isNotEmpty) {
       final melhor = sugestoes.first;
-      final url5 = montarUrl(tipo, melhor.titulo, melhor.artista);
+      final url5 = await montarUrlInteligente(
+        tipo,
+        melhor.titulo,
+        melhor.artista,
+      );
       return ResolucaoCifra(
         titulo: melhor.titulo,
         artista: melhor.artista,
@@ -243,7 +584,7 @@ class LetrasUtils {
   // ─── Abrir URL ───────────────────────────────────────────────────────────
   static Future<void> abrirUrlNavegadorExterno(String urlStr) async {
     final uri = Uri.parse(urlStr);
-    final mode = LaunchMode.externalApplication;
+    const mode = LaunchMode.externalApplication;
     try {
       await launchUrl(uri, mode: mode);
     } catch (e) {
@@ -259,6 +600,7 @@ class ResolucaoCifra {
   final String url;
   final String origem;
   final bool confirmado;
+  final bool oficialYoutube;
   final bool isFallback;
   final List<TituloArtista> sugestoes;
 
@@ -268,6 +610,7 @@ class ResolucaoCifra {
     required this.url,
     required this.origem,
     this.confirmado = false,
+    this.oficialYoutube = false,
     this.isFallback = false,
     this.sugestoes = const [],
   });

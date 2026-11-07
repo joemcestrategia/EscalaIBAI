@@ -9,6 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt_explode;
 import '../../core/utils/cors_client.dart';
+import '../../core/utils/letras_utils.dart';
+import '../../core/utils/titulo_normalizer.dart';
+import '../../core/repositories/cifra_cache_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
@@ -99,6 +102,7 @@ class _MusicasScreenState extends ConsumerState<MusicasScreen>
           initialTitle: video['title'] ?? '',
           initialLink: video['url'] ?? '',
           initialArtist: video['author'] ?? '',
+          initialDuration: video['duration'] ?? '',
         ),
       );
       if (ok == true && mounted) ref.invalidate(musicasProvider);
@@ -249,20 +253,14 @@ class _MusicaTile extends StatelessWidget {
         title: Text(musica.titulo, style: AppTextStyles.body()),
         subtitle: Text('${musica.artista}${musica.tempo.isNotEmpty ? ' • ${musica.tempo}' : ''}', style: AppTextStyles.bodySmall()),
         onTap: () {
-          String? videoId;
-          if (musica.linkYoutube.isNotEmpty) {
-            final uri = Uri.tryParse(musica.linkYoutube);
-            if (uri != null) {
-              if (uri.queryParameters.containsKey('v')) videoId = uri.queryParameters['v'];
-              else if (uri.host == 'youtu.be') videoId = uri.pathSegments.firstOrNull;
-            }
-          }
+          final videoId = LetrasUtils.extrairVideoId(musica.linkYoutube);
           CifraBottomSheet.mostrar(
             context,
             titulo: musica.titulo,
             artista: musica.artista,
             videoId: videoId,
-            linkYoutube: musica.linkYoutube.isNotEmpty ? musica.linkYoutube : null,
+            linkYoutube:
+                musica.linkYoutube.isNotEmpty ? musica.linkYoutube : null,
           );
         },
         trailing: IconButton(
@@ -667,11 +665,13 @@ class _ModalAddMusica extends ConsumerStatefulWidget {
   final String initialTitle;
   final String initialLink;
   final String initialArtist;
+  final String initialDuration;
 
   const _ModalAddMusica({
     required this.initialTitle,
     required this.initialLink,
     required this.initialArtist,
+    this.initialDuration = '',
   });
 
   @override
@@ -685,14 +685,77 @@ class _ModalAddMusicaState extends ConsumerState<_ModalAddMusica> {
   late TextEditingController _link;
   late TextEditingController _tempo;
   bool _loading = false;
+  bool _inspecionando = false;
+  bool _oficialYoutube = false;
+  ResultadoCifraClub? _cifraVinculada;
+  List<ResultadoCifraClub> _opcoesCifra = const [];
 
   @override
   void initState() {
     super.initState();
-    _titulo = TextEditingController(text: widget.initialTitle);
-    _artista = TextEditingController(text: widget.initialArtist);
+    final preliminar = extrairDoTituloYt(
+      tituloYt: widget.initialTitle,
+      nomeCanal: widget.initialArtist,
+    );
+    _titulo = TextEditingController(text: preliminar.titulo);
+    _artista = TextEditingController(text: preliminar.artista);
     _link = TextEditingController(text: widget.initialLink);
-    _tempo = TextEditingController(text: '');
+    _tempo = TextEditingController(
+      text: LetrasUtils.formatarDuracao(widget.initialDuration),
+    );
+    _inspecionarAutomaticamente();
+  }
+
+  @override
+  void dispose() {
+    _titulo.dispose();
+    _artista.dispose();
+    _link.dispose();
+    _tempo.dispose();
+    super.dispose();
+  }
+
+  Future<void> _inspecionarAutomaticamente() async {
+    final videoId = LetrasUtils.extrairVideoId(widget.initialLink);
+    setState(() => _inspecionando = true);
+    try {
+      final info = await LetrasUtils.inspecionarVideoYoutube(
+        videoId: videoId,
+        tituloBruto: widget.initialTitle,
+        canalBruto: widget.initialArtist,
+        duracaoBruta: widget.initialDuration,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (info.titulo.isNotEmpty) _titulo.text = info.titulo;
+        if (info.artista.isNotEmpty) _artista.text = info.artista;
+        if (_tempo.text.trim().isEmpty && info.duracao.isNotEmpty) {
+          _tempo.text = info.duracao;
+        }
+        _oficialYoutube = info.oficialYoutube;
+        _cifraVinculada = info.cifraPrincipal;
+        _opcoesCifra = info.opcoesCifra;
+      });
+    } finally {
+      if (mounted) setState(() => _inspecionando = false);
+    }
+  }
+
+  Future<void> _revalidarCifraManual() async {
+    final tit = _titulo.text.trim();
+    final art = _artista.text.trim();
+    if (tit.isEmpty) return;
+    setState(() => _inspecionando = true);
+    try {
+      final hits = await consultarCifraClub(titulo: tit, artista: art);
+      if (!mounted) return;
+      setState(() {
+        _cifraVinculada = hits.isNotEmpty ? hits.first : null;
+        _opcoesCifra = hits.take(4).toList();
+      });
+    } finally {
+      if (mounted) setState(() => _inspecionando = false);
+    }
   }
 
   @override
@@ -706,7 +769,9 @@ class _ModalAddMusicaState extends ConsumerState<_ModalAddMusica> {
         left: 20,
         right: 20,
         top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20 + MediaQuery.of(context).padding.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom +
+            20 +
+            MediaQuery.of(context).padding.bottom,
       ),
       child: LoadingOverlay(
         loading: _loading,
@@ -728,8 +793,45 @@ class _ModalAddMusicaState extends ConsumerState<_ModalAddMusica> {
                     ),
                   ),
                 ),
-                Text('Adicionar Música', style: AppTextStyles.heading()),
-                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child:
+                          Text('Adicionar Música', style: AppTextStyles.heading()),
+                    ),
+                    if (_oficialYoutube)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.acento.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.acento.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          '🎵 Tag Oficial YT',
+                          style: AppTextStyles.label(color: AppColors.acento),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _StatusCifraCard(
+                  inspecionando: _inspecionando,
+                  cifraVinculada: _cifraVinculada,
+                  opcoes: _opcoesCifra,
+                  onRevalidar: _revalidarCifraManual,
+                  onSelecionarOpcao: (op) {
+                    setState(() {
+                      _cifraVinculada = op;
+                      _titulo.text = limparTitulo(op.titulo);
+                      _artista.text = op.artista;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: 'Título *',
                   controller: _titulo,
@@ -764,24 +866,163 @@ class _ModalAddMusicaState extends ConsumerState<_ModalAddMusica> {
     );
   }
 
-
-
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final tituloLimpo = _titulo.text.trim();
+      final artistaLimpo = _artista.text.trim();
+      final link = _link.text.trim();
+
       await ref.read(musicasRepoProvider).inserir({
-        'titulo': _titulo.text.trim(),
-        'artista': _artista.text.trim(),
-        'link_youtube': _link.text.trim(),
+        'titulo': tituloLimpo,
+        'artista': artistaLimpo,
+        'link_youtube': link,
         'tempo': _tempo.text.trim(),
       });
+
+      final videoId = LetrasUtils.extrairVideoId(link);
+      if (videoId != null && videoId.isNotEmpty) {
+        final nomeCifra = _cifraVinculada != null
+            ? limparTitulo(_cifraVinculada!.titulo)
+            : tituloLimpo;
+        final artistaCifra = _cifraVinculada != null
+            ? _cifraVinculada!.artista
+            : artistaLimpo;
+        await CifraCacheRepository().confirmar(
+          videoId: videoId,
+          nomeCifra: nomeCifra,
+          artistaCifra: artistaCifra,
+        );
+      }
+
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) AppSnackbar.show(context, 'Erro: $e', erro: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+}
+
+// ─── Card de Status da Cifra e Tag Oficial ───────────────────────────────────
+class _StatusCifraCard extends StatelessWidget {
+  final bool inspecionando;
+  final ResultadoCifraClub? cifraVinculada;
+  final List<ResultadoCifraClub> opcoes;
+  final VoidCallback onRevalidar;
+  final ValueChanged<ResultadoCifraClub> onSelecionarOpcao;
+
+  const _StatusCifraCard({
+    required this.inspecionando,
+    required this.cifraVinculada,
+    required this.opcoes,
+    required this.onRevalidar,
+    required this.onSelecionarOpcao,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (inspecionando) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.acento.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.acento.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.acento,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Extraindo metadados oficiais do YouTube e validando cifra...',
+                style: AppTextStyles.bodySmall(color: context.textoSecund),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final encontrou = cifraVinculada != null;
+    final cor = encontrou ? AppColors.sucesso : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                encontrou ? Icons.check_circle : Icons.info_outline,
+                color: cor,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  encontrou
+                      ? 'Cifra localizada: ${cifraVinculada!.titulo} — ${cifraVinculada!.artista}'
+                      : 'Cifra não localizada automaticamente. Ajuste Título/Artista e toque em Revalidar.',
+                  style: AppTextStyles.bodySmall(color: context.textoPrimario),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onRevalidar,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.refresh, size: 15, color: AppColors.acento),
+                label: Text(
+                  'Revalidar',
+                  style: AppTextStyles.label(color: AppColors.acento),
+                ),
+              ),
+            ],
+          ),
+          if (opcoes.length > 1) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: opcoes.map((op) {
+                final selecionado = cifraVinculada?.artistaSlug == op.artistaSlug &&
+                    cifraVinculada?.musicaSlug == op.musicaSlug;
+                return ChoiceChip(
+                  label: Text(
+                    '${op.titulo} (${op.artista})',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: selecionado ? Colors.white : context.textoSecund,
+                    ),
+                  ),
+                  selected: selecionado,
+                  selectedColor: AppColors.acento,
+                  onSelected: (_) => onSelecionarOpcao(op),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -801,6 +1042,10 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
   late TextEditingController _link;
   late TextEditingController _tempo;
   bool _loading = false;
+  bool _inspecionando = false;
+  bool _oficialYoutube = false;
+  ResultadoCifraClub? _cifraVinculada;
+  List<ResultadoCifraClub> _opcoesCifra = const [];
 
   @override
   void initState() {
@@ -809,6 +1054,7 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
     _artista = TextEditingController(text: widget.musica.artista);
     _link = TextEditingController(text: widget.musica.linkYoutube);
     _tempo = TextEditingController(text: widget.musica.tempo);
+    _validarCifraAtual();
   }
 
   @override
@@ -820,8 +1066,57 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
     super.dispose();
   }
 
+  Future<void> _validarCifraAtual() async {
+    if (_titulo.text.trim().isEmpty) return;
+    setState(() => _inspecionando = true);
+    try {
+      final hits = await consultarCifraClub(
+        titulo: _titulo.text.trim(),
+        artista: _artista.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _cifraVinculada = hits.isNotEmpty ? hits.first : null;
+        _opcoesCifra = hits.take(4).toList();
+      });
+    } finally {
+      if (mounted) setState(() => _inspecionando = false);
+    }
+  }
+
+  Future<void> _extrairDoYoutube() async {
+    final videoId = LetrasUtils.extrairVideoId(_link.text);
+    if (videoId == null || videoId.isEmpty) {
+      await _validarCifraAtual();
+      return;
+    }
+    setState(() => _inspecionando = true);
+    try {
+      final info = await LetrasUtils.inspecionarVideoYoutube(
+        videoId: videoId,
+        tituloBruto: _titulo.text,
+        canalBruto: _artista.text,
+        duracaoBruta: _tempo.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (info.titulo.isNotEmpty) _titulo.text = info.titulo;
+        if (info.artista.isNotEmpty) _artista.text = info.artista;
+        if (_tempo.text.trim().isEmpty && info.duracao.isNotEmpty) {
+          _tempo.text = info.duracao;
+        }
+        _oficialYoutube = info.oficialYoutube;
+        _cifraVinculada = info.cifraPrincipal;
+        _opcoesCifra = info.opcoesCifra;
+      });
+    } finally {
+      if (mounted) setState(() => _inspecionando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final temLinkYt = LetrasUtils.extrairVideoId(_link.text) != null;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -831,7 +1126,9 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
         left: 20,
         right: 20,
         top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20 + MediaQuery.of(context).padding.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom +
+            20 +
+            MediaQuery.of(context).padding.bottom,
       ),
       child: LoadingOverlay(
         loading: _loading,
@@ -853,8 +1150,54 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
                     ),
                   ),
                 ),
-                Text('Editar Música', style: AppTextStyles.heading()),
-                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Editar Música', style: AppTextStyles.heading()),
+                    ),
+                    if (_oficialYoutube)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.acento.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.acento.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          '🎵 Tag Oficial YT',
+                          style: AppTextStyles.label(color: AppColors.acento),
+                        ),
+                      )
+                    else if (temLinkYt)
+                      TextButton.icon(
+                        onPressed: _inspecionando ? null : _extrairDoYoutube,
+                        icon: const Icon(Icons.auto_fix_high,
+                            size: 16, color: AppColors.acento),
+                        label: Text(
+                          'Auto-limpar pelo YT',
+                          style: AppTextStyles.label(color: AppColors.acento),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _StatusCifraCard(
+                  inspecionando: _inspecionando,
+                  cifraVinculada: _cifraVinculada,
+                  opcoes: _opcoesCifra,
+                  onRevalidar: _validarCifraAtual,
+                  onSelecionarOpcao: (op) {
+                    setState(() {
+                      _cifraVinculada = op;
+                      _titulo.text = limparTitulo(op.titulo);
+                      _artista.text = op.artista;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: 'Título *',
                   controller: _titulo,
@@ -873,7 +1216,6 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
                   label: 'Link YouTube',
                   controller: _link,
                   keyboardType: TextInputType.url,
-                  // O link pode ser alterado, mas o foco principal é o título
                 ),
                 const SizedBox(height: 24),
                 AppButton(
@@ -894,12 +1236,32 @@ class _ModalEditMusicaState extends ConsumerState<_ModalEditMusica> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final tituloLimpo = _titulo.text.trim();
+      final artistaLimpo = _artista.text.trim();
+      final link = _link.text.trim();
+
       await ref.read(musicasRepoProvider).atualizar(widget.musica.id, {
-        'titulo': _titulo.text.trim(),
-        'artista': _artista.text.trim(),
-        'link_youtube': _link.text.trim(),
+        'titulo': tituloLimpo,
+        'artista': artistaLimpo,
+        'link_youtube': link,
         'tempo': _tempo.text.trim(),
       });
+
+      final videoId = LetrasUtils.extrairVideoId(link);
+      if (videoId != null && videoId.isNotEmpty) {
+        final nomeCifra = _cifraVinculada != null
+            ? limparTitulo(_cifraVinculada!.titulo)
+            : tituloLimpo;
+        final artistaCifra = _cifraVinculada != null
+            ? _cifraVinculada!.artista
+            : artistaLimpo;
+        await CifraCacheRepository().confirmar(
+          videoId: videoId,
+          nomeCifra: nomeCifra,
+          artistaCifra: artistaCifra,
+        );
+      }
+
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) AppSnackbar.show(context, 'Erro: $e', erro: true);

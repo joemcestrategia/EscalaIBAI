@@ -154,12 +154,15 @@ class _CifraBottomSheetState extends State<CifraBottomSheet> {
 
   Future<void> _confirmarNome(String titulo, String artista) async {
     if (widget.videoId == null || widget.videoId!.isEmpty) return;
+    setState(() => _loading = true);
     try {
       await CifraCacheRepository().confirmar(
         videoId: widget.videoId!,
         nomeCifra: titulo,
         artistaCifra: artista,
       );
+      final urlFinal =
+          await LetrasUtils.montarUrlInteligente(_tipo, titulo, artista);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -168,7 +171,6 @@ class _CifraBottomSheetState extends State<CifraBottomSheet> {
           ),
         );
         Navigator.of(context, rootNavigator: true).pop();
-        final urlFinal = LetrasUtils.montarUrl(_tipo, titulo, artista);
         if (kIsWeb) {
           await LetrasUtils.abrirUrlNavegadorExterno(urlFinal);
         } else {
@@ -185,6 +187,8 @@ class _CifraBottomSheetState extends State<CifraBottomSheet> {
       }
     } catch (e) {
       debugPrint('[CifraBottomSheet] Erro ao confirmar: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -412,11 +416,16 @@ class _CifraBottomSheetState extends State<CifraBottomSheet> {
                   resolucao: _resolucao!,
                   tipo: _tipo,
                   onAbrir: _abrirUrl,
-                  onSugestaoTap: (s) {
+                  onSugestaoTap: (s) async {
                     _ctrlTitulo.text = s.titulo;
                     _ctrlArtista.text = s.artista;
-                    final url = LetrasUtils.montarUrl(_tipo, s.titulo, s.artista);
-                    _abrirUrl(url);
+                    final url = s.montarUrlExata(_tipo) ??
+                        await LetrasUtils.montarUrlInteligente(
+                          _tipo,
+                          s.titulo,
+                          s.artista,
+                        );
+                    await _abrirUrl(url);
                   },
                 ),
               ),
@@ -470,13 +479,17 @@ class _ResultadoWidget extends StatelessWidget {
       );
     }
 
-    // Sugestões fuzzy
+    // Sugestões (medley oficial ou fuzzy)
     if (resolucao.sugestoes.isNotEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Você quis dizer...?',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          Text(
+            resolucao.oficialYoutube
+                ? '🎵 Músicas oficiais detectadas neste vídeo:'
+                : 'Você quis dizer...?',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
           const SizedBox(height: 8),
           ...resolucao.sugestoes.map((s) => _SugestaoTile(
                 sugestao: s,
@@ -499,6 +512,13 @@ class _ResultadoWidget extends StatelessWidget {
         ),
         Text(resolucao.artista,
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        if (resolucao.oficialYoutube) ...[
+          const SizedBox(height: 4),
+          const Text(
+            '🎵 Identificada pela tag oficial do YouTube',
+            style: TextStyle(color: AppColors.acento, fontSize: 11),
+          ),
+        ],
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
