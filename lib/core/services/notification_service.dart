@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import '../models/agenda_item.dart';
@@ -92,7 +93,10 @@ class NotificationService {
 
   /// Agenda todas as notificações pessoais (Escala de Culto e Jejum)
   /// exclusivamente para o membro identificado neste aparelho.
-  static Future<int> agendarNotificacoesEscala(List<EscalaItem> escalas) async {
+  static Future<int> agendarNotificacoesEscala(
+    List<EscalaItem> escalas, {
+    List<dynamic>? repertoriosCache,
+  }) async {
     if (kIsWeb) return 0;
     if (_agendando) return 0;
     _agendando = true;
@@ -105,6 +109,19 @@ class NotificationService {
 
       // Limpa agendamentos anteriores para evitar duplicidade ou dados de outro perfil
       await _notifications.cancelAll();
+
+      // Busca os repertórios no Supabase para validar se as playlists já foram montadas
+      List<dynamic> repertorios = repertoriosCache ?? [];
+      if (repertoriosCache == null) {
+        try {
+          final res = await Supabase.instance.client
+              .from('repertorios')
+              .select('data_culto, hora_culto, lista_musicas');
+          repertorios = res as List<dynamic>;
+        } catch (e) {
+          debugPrint('Aviso ao consultar repertorios para agendamento: $e');
+        }
+      }
 
       final validas = escalas.where((item) {
         final nome = item.nome.trim();
@@ -226,6 +243,71 @@ class NotificationService {
             dataHora: alertaMinistro,
           );
           if (agendouMinistro) totalAgendadas++;
+
+          // Aviso Novo: Cobrança caso o ministro AINDA NÃO tenha montado a playlist
+          bool temPlaylist = false;
+          for (final rep in repertorios) {
+            final rData = (rep['data_culto'] ?? '').toString();
+            final rHora = (rep['hora_culto'] ?? '').toString();
+            final rHoraCurta =
+                rHora.length >= 5 ? rHora.substring(0, 5) : rHora;
+            final rLista = rep['lista_musicas'];
+            final rQtd = (rLista is List) ? rLista.length : 0;
+            if (rData == primeiro.data && rHoraCurta == horaFmt && rQtd > 0) {
+              temPlaylist = true;
+              break;
+            }
+          }
+
+          if (temPlaylist) {
+            // Se já possui músicas na playlist, cancela qualquer cobrança de pendência
+            await _notifications.cancel(baseId + 4);
+          } else {
+            // Se NÃO montou a playlist ainda:
+            // Culto matutino (< 12:00): avisa na véspera às 20:00
+            // Culto tarde/noite (>= 12:00): avisa no dia do culto às 08:00
+            DateTime alertaCobranca;
+            String corpoCobranca;
+            if (isCultoMatutino) {
+              final vespera = dataHoraCulto.subtract(const Duration(days: 1));
+              alertaCobranca = DateTime(
+                vespera.year,
+                vespera.month,
+                vespera.day,
+                20,
+                0,
+              );
+              corpoCobranca =
+                  '$diaSemanaCulto ($diaFmt) às $horaFmt • A playlist ainda não foi montada!';
+            } else {
+              alertaCobranca = DateTime(ano, mes, dia, 8, 0);
+              corpoCobranca =
+                  '$diaSemanaCulto às $horaFmt • A playlist ainda não foi montada!';
+            }
+
+            final agendouCobranca = await agendarAlertaCustomizado(
+              id: baseId + 4,
+              titulo: '🎵 Playlist Pendente',
+              corpo: corpoCobranca,
+              dataHora: alertaCobranca,
+            );
+            if (agendouCobranca) {
+              totalAgendadas++;
+            } else {
+              // Se o alarme de cobrança já deveria ter tocado (passou da hora),
+              // mas o culto ainda vai acontecer e faltam pelo menos 30 min:
+              final agora = DateTime.now();
+              if (agora.isAfter(alertaCobranca) &&
+                  dataHoraCulto.isAfter(agora) &&
+                  dataHoraCulto.difference(agora).inMinutes >= 30) {
+                await mostrarNotificacaoImediata(
+                  id: baseId + 4,
+                  titulo: '🎵 Playlist Pendente',
+                  corpo: corpoCobranca,
+                );
+              }
+            }
+          }
         }
 
         // Aviso 2: Notificação prévia do Culto
@@ -342,6 +424,20 @@ class NotificationService {
   static Future<void> cancelarTodas() async {
     if (kIsWeb) return;
     await _notifications.cancelAll();
+  }
+
+  /// Cancela o alerta de cobrança de montagem de playlist para um determinado culto
+  static Future<void> cancelarCobrancaPlaylist(String data, String hora) async {
+    if (kIsWeb) return;
+    try {
+      final horaCurta = hora.length >= 5 ? hora.substring(0, 5) : hora;
+      final baseId = ('culto_${data}_$horaCurta').hashCode.abs() % 100000000;
+      await _notifications.cancel(baseId + 4);
+      debugPrint(
+          '🔔 [Notificações] Cobrança de playlist cancelada para $data $horaCurta (ID: ${baseId + 4})');
+    } catch (e) {
+      debugPrint('Erro ao cancelar cobrança de playlist: $e');
+    }
   }
 
   static Future<void> mostrarNotificacaoImediata({

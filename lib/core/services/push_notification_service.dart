@@ -112,6 +112,12 @@ class PushNotificationService {
 
                 if (dataCulto.isEmpty || qtd == 0) return;
 
+                // Cancela qualquer cobrança pendente caso a playlist tenha sido montada
+                NotificationService.cancelarCobrancaPlaylist(
+                  dataCulto,
+                  horaCulto,
+                );
+
                 final partes = dataCulto.split('-');
                 final dataFmt = partes.length == 3
                     ? '${partes[2]}/${partes[1]}/${partes[0]}'

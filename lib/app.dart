@@ -152,6 +152,13 @@ class _MainShellState extends ConsumerState<_MainShell> {
       }
     });
 
+    // Reagenda notificações pessoais quando os repertórios mudam em tempo real
+    ref.listen<AsyncValue<dynamic>>(repertoriosProvider, (prev, next) {
+      if (next.hasValue) {
+        _agendarNotificacoes();
+      }
+    });
+
     final screens = [
       const HomeScreen(),
       isMembro ? const MinhasEscalasScreen() : const EscalaScreen(),

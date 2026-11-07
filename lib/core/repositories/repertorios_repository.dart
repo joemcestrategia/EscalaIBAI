@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/repertorio.dart';
+import '../services/notification_service.dart';
 
 class RepertoriosRepository {
   final _db = Supabase.instance.client;
@@ -41,6 +42,9 @@ class RepertoriosRepository {
 
     // 2. Dispara notificação push para todos quando há músicas na playlist
     if (listaMusicas.isNotEmpty) {
+      // Cancela cobrança local de playlist pendente para este culto
+      NotificationService.cancelarCobrancaPlaylist(data, hora);
+
       try {
         await _db.functions.invoke('notificar-repertorio', body: {
           'dataCulto': data,

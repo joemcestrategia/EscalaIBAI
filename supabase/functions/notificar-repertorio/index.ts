@@ -81,7 +81,7 @@ serve(async (req: Request) => {
 
   try {
     const reqBody = await req.json()
-    const { dataCulto, horaCulto, qtdMusicas, membroId, titulo, corpo } = reqBody
+    const { dataCulto, horaCulto, qtdMusicas, membroId, titulo, corpo, acao } = reqBody
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -99,6 +99,141 @@ serve(async (req: Request) => {
     const cleanJsonStr = serviceAccountStr.replace(/^'|'$/g, '')
     const serviceAccount = JSON.parse(cleanJsonStr)
     const accessToken = await getAccessToken(serviceAccount)
+
+    // MODO 0: Verificação de pendências de playlist para ministros
+    if (acao === 'verificar_pendencias_ministro') {
+      const agoraUtc = new Date()
+      // Fuso horário de Brasília (UTC-3)
+      const agoraBrasilia = new Date(agoraUtc.getTime() - 3 * 60 * 60 * 1000)
+      const hojeStr = agoraBrasilia.toISOString().split('T')[0]
+      const amanhaObj = new Date(agoraBrasilia.getTime() + 24 * 60 * 60 * 1000)
+      const amanhaStr = amanhaObj.toISOString().split('T')[0]
+
+      const { data: escalas, error: escalaErr } = await supabaseClient
+        .from('escala')
+        .select('id, data, horario, nome, funcao')
+        .in('data', [hojeStr, amanhaStr])
+
+      if (escalaErr) throw escalaErr
+
+      const ministrosEscalados = (escalas ?? []).filter((e: any) => {
+        const f = (e.funcao ?? '').toLowerCase()
+        const n = (e.nome ?? '').trim()
+        return (f.includes('ministro') || f.includes('dirigente')) && n !== '' && n !== '[FALTA]'
+      })
+
+      const { data: repertorios } = await supabaseClient
+        .from('repertorios')
+        .select('data_culto, hora_culto, lista_musicas')
+        .in('data_culto', [hojeStr, amanhaStr])
+
+      const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+      let totalCobrados = 0
+
+      for (const item of ministrosEscalados) {
+        const horaParts = (item.horario ?? '').split(':')
+        const hora = parseInt(horaParts[0] ?? '0', 10)
+        const isCultoMatutino = hora < 12
+        const horaCurta = item.horario.length >= 5 ? item.horario.substring(0, 5) : item.horario
+
+        // Se culto matutino: cobra na véspera (quando hoje == amanha do culto - 1)
+        // Se culto noturno: cobra no dia do culto (quando hoje == data do culto)
+        const deveCobrarHoje = isCultoMatutino
+          ? item.data === amanhaStr
+          : item.data === hojeStr
+
+        if (!deveCobrarHoje) continue
+
+        // Verifica se a playlist já possui músicas cadastradas
+        const temPlaylist = (repertorios ?? []).some((r: any) => {
+          const rData = r.data_culto
+          const rHora = (r.hora_culto ?? '').substring(0, 5)
+          const rMusicas = r.lista_musicas
+          return rData === item.data && rHora === horaCurta && Array.isArray(rMusicas) && rMusicas.length > 0
+        })
+
+        if (temPlaylist) continue // Já preencheu, não cobra
+
+        // Busca o membro_id pelo nome
+        const { data: membroRow } = await supabaseClient
+          .from('membros')
+          .select('id')
+          .eq('nome', item.nome)
+          .maybeSingle()
+
+        if (!membroRow) continue
+
+        // Busca tokens FCM do ministro
+        const { data: tokensRow } = await supabaseClient
+          .from('membro_tokens')
+          .select('token')
+          .eq('membro_id', membroRow.id)
+
+        const tokens = tokensRow
+          ? [...new Set(tokensRow.map((t: any) => t.token).filter(Boolean))]
+          : []
+
+        if (tokens.length === 0) continue
+
+        const dParts = item.data.split('-')
+        const dataFmt = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}` : item.data
+        const dt = new Date(`${item.data}T12:00:00Z`)
+        const diaSemanaNome = diasSemana[dt.getUTCDay()]
+
+        const corpoMsg = isCultoMatutino
+          ? `${diaSemanaNome} (${dataFmt}) às ${horaCurta} • A playlist ainda não foi montada!`
+          : `${diaSemanaNome} às ${horaCurta} • A playlist ainda não foi montada!`
+
+        for (const token of tokens) {
+          const pushPayload = {
+            message: {
+              token: token,
+              notification: {
+                title: '🎵 Playlist Pendente',
+                body: corpoMsg,
+              },
+              data: {
+                tipo: 'playlist_pendente',
+                data_culto: String(item.data),
+                hora_culto: String(horaCurta),
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  sound: 'toque_escala',
+                  channel_id: 'alertas_igreja_v4',
+                },
+              },
+            },
+          }
+
+          try {
+            await fetch(
+              `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify(pushPayload),
+              }
+            )
+            totalCobrados++
+          } catch (e) {
+            console.error(`Erro ao enviar cobrança para ${item.nome}:`, e)
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          message: 'Verificação de pendências concluída',
+          ministrosCobrados: totalCobrados,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
 
     // MODO 1: Envio individual para um membro específico (ex: teste ou aviso individual)
     if (membroId) {
