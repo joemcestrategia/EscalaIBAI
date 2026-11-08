@@ -9,10 +9,12 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/escala_item.dart';
+import '../../core/models/frequencia_registro.dart';
 import '../../core/models/repertorio.dart';
 import '../../core/models/agenda_item.dart';
 import '../../core/services/whatsapp_service.dart';
 import '../../shared/widgets/app_widgets.dart';
+import '../membros/frequencia_screen.dart';
 import 'modais/modal_add_escala.dart';
 import 'modais/modal_gerar_escala.dart';
 import 'modais/modal_edit_escala.dart';
@@ -620,6 +622,20 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
                           onSelected: (value) async {
                             if (value == 'musica') {
                               _gerenciarSetlist(context, itens.first.data, hora);
+                            } else if (value == 'chamada') {
+                              await showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => ChamadaCultoSheet(
+                                  dataCulto: itens.first.data,
+                                  horaCulto: hora,
+                                  tema: tema,
+                                ),
+                              );
+                              ref.invalidate(escalaDoMesProvider);
+                              ref.invalidate(kpiMesProvider);
+                              ref.read(frequenciaRefreshProvider.notifier).state++;
                             } else if (value == 'membro') {
                               final dataObj =
                                   DateTime.tryParse(itens.first.data);
@@ -652,6 +668,21 @@ class _EscalaScreenState extends ConsumerState<EscalaScreen> {
                                   ],
                                 ),
                               ),
+                              if (role == UserRole.lider)
+                                PopupMenuItem(
+                                  value: 'chamada',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        PhosphorIconsBold.calendarCheck,
+                                        color: context.corPrimaria,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text('Chamada e Faltas'),
+                                    ],
+                                  ),
+                                ),
                               if (role == UserRole.lider)
                                 PopupMenuItem(
                                   value: 'membro',
@@ -896,6 +927,7 @@ class _EscalaItemTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final falta = item.nome == '[FALTA]' || item.statusConvite == 'FALTA';
+    final faltaJustificada = item.statusConvite == 'FALTA_JUSTIFICADA';
     final role = ref.watch(userRoleProvider);
 
     return Padding(
@@ -905,7 +937,9 @@ class _EscalaItemTile extends ConsumerWidget {
           AppAvatar(
             name: item.nome == '[FALTA]' ? '!' : item.nome,
             size: 42,
-            accentColor: falta ? AppColors.perigo : cor,
+            accentColor: falta
+                ? AppColors.perigo
+                : (faltaJustificada ? AppColors.alerta : cor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -915,7 +949,11 @@ class _EscalaItemTile extends ConsumerWidget {
                 Text(
                   item.nome == '[FALTA]' ? 'Vaga em aberto' : item.nome,
                   style: AppTextStyles.body(
-                    color: falta ? AppColors.perigo : context.textoPrimario,
+                    color: falta
+                        ? AppColors.perigo
+                        : (faltaJustificada
+                            ? AppColors.alerta
+                            : context.textoPrimario),
                     fontWeight: FontWeight.w700,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -960,6 +998,19 @@ class _EscalaItemTile extends ConsumerWidget {
                     .copyWith(fontSize: 12),
               ),
             )
+          else if (item.statusConvite == 'FALTA_JUSTIFICADA')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.alerta.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Justificada',
+                style: AppTextStyles.label(color: AppColors.alerta)
+                    .copyWith(fontSize: 12),
+              ),
+            )
           else if (item.statusConvite == 'ENVIADO')
             Icon(
               PhosphorIconsBold.paperPlaneTilt,
@@ -984,6 +1035,10 @@ class _EscalaItemTile extends ConsumerWidget {
                   child: Text('Registrar Falta'),
                 ),
                 PopupMenuItem(
+                  value: 'falta_justificada',
+                  child: Text('Falta Justificada'),
+                ),
+                PopupMenuItem(
                   value: 'excluir',
                   child: Text(
                     'Excluir',
@@ -998,8 +1053,105 @@ class _EscalaItemTile extends ConsumerWidget {
     );
   }
 
+  List<EscalaItem> _itensDoMembroNoCulto(WidgetRef ref) {
+    final todosMes = ref.read(escalaDoMesProvider).valueOrNull ?? [];
+    final relacionados = todosMes
+        .where(
+          (e) =>
+              e.data == item.data &&
+              e.horario == item.horario &&
+              e.ministerio == item.ministerio &&
+              e.nome.trim().toLowerCase() == item.nome.trim().toLowerCase(),
+        )
+        .toList();
+    return relacionados.isNotEmpty ? relacionados : [item];
+  }
+
+  String? _buscarMembroId(WidgetRef ref) {
+    final membros = ref.read(membrosProvider).valueOrNull ?? [];
+    final alvo = item.nome.trim().toLowerCase();
+    for (final m in membros) {
+      if (m.nome.trim().toLowerCase() == alvo) return m.id;
+    }
+    return null;
+  }
+
+  Future<({bool confirmado, String motivo})?> _dialogFalta(
+    BuildContext context, {
+    required bool justificada,
+  }) async {
+    final motivoCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          justificada ? 'Falta Justificada' : 'Registrar Falta',
+          style: AppTextStyles.subheading(color: ctx.textoPrimario),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Confirmar falta para ${item.nome} neste culto?',
+                style: AppTextStyles.bodySmall(color: ctx.textoSecund),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: motivoCtrl,
+                maxLines: 3,
+                autofocus: justificada,
+                style: AppTextStyles.body(color: ctx.textoPrimario),
+                decoration: InputDecoration(
+                  labelText: justificada
+                      ? 'Motivo / Justificativa *'
+                      : 'Observação (opcional)',
+                  hintText: 'Ex: Viagem, problema de saúde, trabalho...',
+                ),
+                validator: justificada
+                    ? (v) => (v == null || v.trim().isEmpty)
+                        ? 'Informe o motivo'
+                        : null
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  justificada ? AppColors.alerta : AppColors.perigo,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              if (formKey.currentState?.validate() != true) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    final motivo = motivoCtrl.text.trim();
+    motivoCtrl.dispose();
+    if (ok != true) return null;
+    return (confirmado: true, motivo: motivo);
+  }
+
   Future<void> _onMenu(BuildContext context, WidgetRef ref, String v) async {
     final repo = ref.read(escalaRepoProvider);
+    final freqRepo = ref.read(frequenciaRepoProvider);
+    final liderNome =
+        ref.read(userRoleProvider.notifier).selectedMembroNome ?? 'Líder';
+
     switch (v) {
       case 'editar':
         if (context.mounted) {
@@ -1012,24 +1164,51 @@ class _EscalaItemTile extends ConsumerWidget {
         }
         break;
       case 'presenca':
-        await repo.atualizar(item.id, {'status_convite': 'PRESENTE'});
+        await freqRepo.registrarChamadaEscala(
+          itensDoMembroNoCulto: _itensDoMembroNoCulto(ref),
+          status: StatusFrequencia.presente,
+          membroId: _buscarMembroId(ref),
+          registradoPor: liderNome,
+        );
+        ref.invalidate(kpiMesProvider);
+        ref.read(frequenciaRefreshProvider.notifier).state++;
+        if (context.mounted) AppSnackbar.show(context, 'Presença registrada!');
         onRefresh();
         break;
       case 'falta':
         if (context.mounted) {
-          final ok = await ConfirmDialog.show(
-            context,
-            titulo: 'Registrar Falta',
-            mensagem: 'Registrar falta para ${item.nome}?',
-            labelConfirmar: 'Confirmar',
-            perigo: true,
-          );
-          if (ok) {
-            await repo.atualizar(item.id, {'status_convite': 'FALTA'});
-            await ref
-                .read(ausenciasRepoProvider)
-                .inserir(nome: item.nome, motivo: 'Falta no culto');
+          final resp = await _dialogFalta(context, justificada: false);
+          if (resp != null && resp.confirmado) {
+            await freqRepo.registrarChamadaEscala(
+              itensDoMembroNoCulto: _itensDoMembroNoCulto(ref),
+              status: StatusFrequencia.falta,
+              motivo: resp.motivo,
+              membroId: _buscarMembroId(ref),
+              registradoPor: liderNome,
+            );
+            ref.invalidate(kpiMesProvider);
+            ref.read(frequenciaRefreshProvider.notifier).state++;
             if (context.mounted) AppSnackbar.show(context, 'Falta registrada!');
+            onRefresh();
+          }
+        }
+        break;
+      case 'falta_justificada':
+        if (context.mounted) {
+          final resp = await _dialogFalta(context, justificada: true);
+          if (resp != null && resp.confirmado) {
+            await freqRepo.registrarChamadaEscala(
+              itensDoMembroNoCulto: _itensDoMembroNoCulto(ref),
+              status: StatusFrequencia.faltaJustificada,
+              motivo: resp.motivo,
+              membroId: _buscarMembroId(ref),
+              registradoPor: liderNome,
+            );
+            ref.invalidate(kpiMesProvider);
+            ref.read(frequenciaRefreshProvider.notifier).state++;
+            if (context.mounted) {
+              AppSnackbar.show(context, 'Falta justificada registrada!');
+            }
             onRefresh();
           }
         }
@@ -1045,6 +1224,7 @@ class _EscalaItemTile extends ConsumerWidget {
           );
           if (ok) {
             await repo.excluir(item.id);
+            ref.read(frequenciaRefreshProvider.notifier).state++;
             onRefresh();
           }
         }

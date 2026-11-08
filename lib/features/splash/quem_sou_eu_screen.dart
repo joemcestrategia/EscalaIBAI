@@ -113,16 +113,18 @@ class _QuemSouEuScreenState extends ConsumerState<QuemSouEuScreen> {
                           vertical: 14,
                         ),
                         onTap: () async {
+                          // Inicia o registro do Push antes dos awaits para manter o user gesture no Safari iOS
+                          final pushFuture =
+                              PushNotificationService.registerAndSaveToken(
+                            membro.id,
+                          );
+
                           await ref.read(userRoleProvider.notifier).setRole(
                                 widget.role,
                                 membroId: membro.id,
                                 membroNome: membro.nome,
                               );
 
-                          // Registra token FCM e agenda notificações pessoais deste membro
-                          PushNotificationService.registerAndSaveToken(
-                            membro.id,
-                          );
                           ref.invalidate(
                             compromissosDoMembroProvider(membro.nome),
                           );
@@ -139,6 +141,7 @@ class _QuemSouEuScreenState extends ConsumerState<QuemSouEuScreen> {
                           if (context.mounted && Navigator.canPop(context)) {
                             Navigator.pop(context);
                           }
+                          await pushFuture;
                         },
                         child: Row(
                           children: [

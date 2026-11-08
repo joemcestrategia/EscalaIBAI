@@ -72,6 +72,82 @@ async function getAccessToken(serviceAccount: { client_email: string; private_ke
   return data.access_token
 }
 
+function buildTokenPayload(
+  token: string,
+  plataforma: string | null | undefined,
+  title: string,
+  body: string,
+  data: Record<string, string>,
+) {
+  const baseMessage: Record<string, unknown> = {
+    token,
+    notification: {
+      title,
+      body,
+    },
+    data,
+  }
+
+  if (plataforma === 'web') {
+    baseMessage.webpush = {
+      headers: {
+        TTL: '86400',
+        Urgency: 'high',
+      },
+      notification: {
+        title,
+        body,
+        icon: '/icons/Icon-192.png',
+        badge: '/icons/Icon-192.png',
+      },
+      fcm_options: {
+        link: '/',
+      },
+    }
+  } else {
+    baseMessage.android = {
+      priority: 'high',
+      notification: {
+        sound: 'toque_escala',
+        channel_id: 'alertas_igreja_v4',
+      },
+    }
+  }
+
+  return { message: baseMessage }
+}
+
+async function sendFcmAndCollectInvalid(
+  projectId: string,
+  accessToken: string,
+  token: string,
+  payload: Record<string, unknown>,
+  tokensInvalidos: string[],
+): Promise<boolean> {
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    }
+  )
+
+  if (res.ok) {
+    return true
+  }
+
+  const errBody = await res.text()
+  console.error(`Erro ao enviar FCM para token (${token.slice(0, 12)}...):`, errBody)
+  if (errBody.includes('UNREGISTERED') || errBody.includes('INVALID_ARGUMENT')) {
+    tokensInvalidos.push(token)
+  }
+  return false
+}
+
 serve(async (req: Request) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -99,6 +175,7 @@ serve(async (req: Request) => {
     const cleanJsonStr = serviceAccountStr.replace(/^'|'$/g, '')
     const serviceAccount = JSON.parse(cleanJsonStr)
     const accessToken = await getAccessToken(serviceAccount)
+    const tokensInvalidos: string[] = []
 
     // MODO 0: Verificação de pendências de playlist para ministros
     if (acao === 'verificar_pendencias_ministro') {
@@ -111,7 +188,7 @@ serve(async (req: Request) => {
 
       const { data: escalas, error: escalaErr } = await supabaseClient
         .from('escala')
-        .select('id, data, horario, nome, funcao')
+        .select('id, data, horario, nome, funcao, status_convite')
         .in('data', [hojeStr, amanhaStr])
 
       if (escalaErr) throw escalaErr
@@ -119,7 +196,8 @@ serve(async (req: Request) => {
       const ministrosEscalados = (escalas ?? []).filter((e: any) => {
         const f = (e.funcao ?? '').toLowerCase()
         const n = (e.nome ?? '').trim()
-        return (f.includes('ministro') || f.includes('dirigente')) && n !== '' && n !== '[FALTA]'
+        const falta = e.status_convite === 'FALTA' || e.status_convite === 'FALTA_JUSTIFICADA'
+        return (f.includes('ministro') || f.includes('dirigente')) && n !== '' && n !== '[FALTA]' && !falta
       })
 
       const { data: repertorios } = await supabaseClient
@@ -136,15 +214,12 @@ serve(async (req: Request) => {
         const isCultoMatutino = hora < 12
         const horaCurta = item.horario.length >= 5 ? item.horario.substring(0, 5) : item.horario
 
-        // Se culto matutino: cobra na véspera (quando hoje == amanha do culto - 1)
-        // Se culto noturno: cobra no dia do culto (quando hoje == data do culto)
         const deveCobrarHoje = isCultoMatutino
           ? item.data === amanhaStr
           : item.data === hojeStr
 
         if (!deveCobrarHoje) continue
 
-        // Verifica se a playlist já possui músicas cadastradas
         const temPlaylist = (repertorios ?? []).some((r: any) => {
           const rData = r.data_culto
           const rHora = (r.hora_culto ?? '').substring(0, 5)
@@ -152,9 +227,8 @@ serve(async (req: Request) => {
           return rData === item.data && rHora === horaCurta && Array.isArray(rMusicas) && rMusicas.length > 0
         })
 
-        if (temPlaylist) continue // Já preencheu, não cobra
+        if (temPlaylist) continue
 
-        // Busca o membro_id pelo nome
         const { data: membroRow } = await supabaseClient
           .from('membros')
           .select('id')
@@ -163,17 +237,17 @@ serve(async (req: Request) => {
 
         if (!membroRow) continue
 
-        // Busca tokens FCM do ministro
         const { data: tokensRow } = await supabaseClient
           .from('membro_tokens')
-          .select('token')
+          .select('token, plataforma')
           .eq('membro_id', membroRow.id)
 
-        const tokens = tokensRow
-          ? [...new Set(tokensRow.map((t: any) => t.token).filter(Boolean))]
-          : []
+        const tokensUnicos = new Map<string, string>()
+        for (const t of tokensRow ?? []) {
+          if (t.token) tokensUnicos.set(t.token, t.plataforma ?? 'android')
+        }
 
-        if (tokens.length === 0) continue
+        if (tokensUnicos.size === 0) continue
 
         const dParts = item.data.split('-')
         const dataFmt = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}` : item.data
@@ -184,46 +258,39 @@ serve(async (req: Request) => {
           ? `${diaSemanaNome} (${dataFmt}) às ${horaCurta} • A playlist ainda não foi montada!`
           : `${diaSemanaNome} às ${horaCurta} • A playlist ainda não foi montada!`
 
-        for (const token of tokens) {
-          const pushPayload = {
-            message: {
-              token: token,
-              notification: {
-                title: '🎵 Playlist Pendente',
-                body: corpoMsg,
-              },
-              data: {
-                tipo: 'playlist_pendente',
-                data_culto: String(item.data),
-                hora_culto: String(horaCurta),
-              },
-              android: {
-                priority: 'high',
-                notification: {
-                  sound: 'toque_escala',
-                  channel_id: 'alertas_igreja_v4',
-                },
-              },
+        for (const [token, plataforma] of tokensUnicos.entries()) {
+          const pushPayload = buildTokenPayload(
+            token,
+            plataforma,
+            '🎵 Playlist Pendente',
+            corpoMsg,
+            {
+              tipo: 'playlist_pendente',
+              data_culto: String(item.data),
+              hora_culto: String(horaCurta),
             },
-          }
+          )
 
           try {
-            await fetch(
-              `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify(pushPayload),
-              }
+            const ok = await sendFcmAndCollectInvalid(
+              projectId,
+              accessToken,
+              token,
+              pushPayload,
+              tokensInvalidos,
             )
-            totalCobrados++
+            if (ok) totalCobrados++
           } catch (e) {
             console.error(`Erro ao enviar cobrança para ${item.nome}:`, e)
           }
         }
+      }
+
+      if (tokensInvalidos.length > 0) {
+        await supabaseClient
+          .from('membro_tokens')
+          .delete()
+          .in('token', [...new Set(tokensInvalidos)])
       }
 
       return new Response(
@@ -239,16 +306,17 @@ serve(async (req: Request) => {
     if (membroId) {
       const { data: tokensRow, error: tokenErr } = await supabaseClient
         .from('membro_tokens')
-        .select('token')
+        .select('token, plataforma')
         .eq('membro_id', membroId)
 
       if (tokenErr) throw tokenErr
 
-      const tokens = tokensRow
-        ? [...new Set(tokensRow.map((t: any) => t.token).filter(Boolean))]
-        : []
+      const tokensUnicos = new Map<string, string>()
+      for (const t of tokensRow ?? []) {
+        if (t.token) tokensUnicos.set(t.token, t.plataforma ?? 'android')
+      }
 
-      if (tokens.length === 0) {
+      if (tokensUnicos.size === 0) {
         return new Response(
           JSON.stringify({
             message: 'Nenhum token registrado para este membro ainda.',
@@ -263,52 +331,44 @@ serve(async (req: Request) => {
       let successCount = 0
       let failureCount = 0
 
-      for (const token of tokens) {
-        const fcmPayload = {
-          message: {
-            token: token,
-            notification: {
-              title: titulo ?? '🔔 Aviso da Escala',
-              body: corpo ?? 'Você recebeu uma nova notificação no app Escala!',
-            },
-            data: {
-              tipo: 'aviso_pessoal',
-              membro_id: String(membroId),
-            },
-            android: {
-              priority: 'high',
-              notification: {
-                sound: 'toque_escala',
-                channel_id: 'alertas_igreja_v4',
-              },
-            },
-          },
-        }
-
-        const res = await fetch(
-          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      for (const [token, plataforma] of tokensUnicos.entries()) {
+        const fcmPayload = buildTokenPayload(
+          token,
+          plataforma,
+          titulo ?? '🔔 Aviso da Escala',
+          corpo ?? 'Você recebeu uma nova notificação no app Escala!',
           {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify(fcmPayload),
-          }
+            tipo: 'aviso_pessoal',
+            membro_id: String(membroId),
+          },
         )
 
-        if (res.ok) {
+        const ok = await sendFcmAndCollectInvalid(
+          projectId,
+          accessToken,
+          token,
+          fcmPayload,
+          tokensInvalidos,
+        )
+
+        if (ok) {
           successCount++
         } else {
           failureCount++
-          console.error(`Erro ao enviar para token de ${membroId}:`, await res.text())
         }
+      }
+
+      if (tokensInvalidos.length > 0) {
+        await supabaseClient
+          .from('membro_tokens')
+          .delete()
+          .in('token', [...new Set(tokensInvalidos)])
       }
 
       return new Response(
         JSON.stringify({
           message: 'Notificação individual processada',
-          tokensEncontrados: tokens.length,
+          tokensEncontrados: tokensUnicos.size,
           sucesso: successCount,
           falha: failureCount,
         }),
@@ -383,7 +443,7 @@ serve(async (req: Request) => {
       console.error('Erro ao enviar para tópico todos:', await topicRes.text())
     }
 
-    // 2. Envia também para tokens Web registrados em membro_tokens
+    // 2. Envia também para tokens Web (PWA iPhone/Navegadores) registrados em membro_tokens
     const { data: webTokensRow } = await supabaseClient
       .from('membro_tokens')
       .select('token')
@@ -393,45 +453,32 @@ serve(async (req: Request) => {
       ? [...new Set(webTokensRow.map((t: any) => t.token).filter(Boolean))]
       : []
 
-    const tokensInvalidos: string[] = []
-
     if (webTokens.length > 0) {
       const sendPromises = webTokens.map(async (token) => {
-        const fcmPayload = {
-          message: {
-            token: token,
-            notification: {
-              title: title,
-              body: body,
-            },
-            data: {
-              tipo: 'novo_repertorio',
-              data_culto: String(dataCulto),
-              hora_culto: String(horaCurta),
-            },
-          },
-        }
-
-        const res = await fetch(
-          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+        const fcmPayload = buildTokenPayload(
+          token,
+          'web',
+          title,
+          body,
           {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify(fcmPayload),
-          }
+            tipo: 'novo_repertorio',
+            data_culto: String(dataCulto),
+            hora_culto: String(horaCurta),
+          },
         )
 
-        if (res.ok) {
+        const ok = await sendFcmAndCollectInvalid(
+          projectId,
+          accessToken,
+          token,
+          fcmPayload,
+          tokensInvalidos,
+        )
+
+        if (ok) {
           successCount++
         } else {
           failureCount++
-          const errBody = await res.text()
-          if (errBody.includes('UNREGISTERED') || errBody.includes('INVALID_ARGUMENT')) {
-            tokensInvalidos.push(token)
-          }
         }
       })
 
@@ -441,7 +488,7 @@ serve(async (req: Request) => {
         await supabaseClient
           .from('membro_tokens')
           .delete()
-          .in('token', tokensInvalidos)
+          .in('token', [...new Set(tokensInvalidos)])
       }
     }
 

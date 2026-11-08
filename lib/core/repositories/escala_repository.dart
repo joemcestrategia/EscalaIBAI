@@ -99,6 +99,24 @@ class EscalaRepository {
         .toList();
   }
 
+  /// Consulta escalas de um período histórico completo (sem limite de 7 dias atrás),
+  /// utilizado pelo módulo de Frequência, Faltas e Relatório de Comparecimento.
+  Future<List<EscalaItem>> getPorPeriodo(
+    String dataInicio,
+    String dataFim,
+  ) async {
+    final res = await _db
+        .from('escala')
+        .select()
+        .gte('data', dataInicio)
+        .lte('data', dataFim)
+        .order('data', ascending: false)
+        .order('horario', ascending: true);
+    return (res as List)
+        .map((e) => EscalaItem.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<EscalaItem>> getProximos({List<String>? ministerios}) async {
     final agora = DateTime.now();
     final ontemStr = agora.subtract(const Duration(days: 1)).toIso8601String().split('T')[0];

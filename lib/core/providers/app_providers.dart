@@ -11,6 +11,7 @@ import '../models/regra.dart';
 import '../models/compatibilidade.dart';
 import '../models/ministerio.dart';
 import '../models/cfg_jejum.dart';
+import '../models/frequencia_registro.dart';
 import '../repositories/agenda_repository.dart';
 import '../repositories/cultos_repository.dart';
 import '../repositories/ministerios_repository.dart';
@@ -23,6 +24,7 @@ import '../repositories/escala_repository.dart';
 import '../repositories/musicas_repository.dart';
 import '../repositories/repertorios_repository.dart';
 import '../repositories/ausencias_repository.dart';
+import '../repositories/frequencia_repository.dart';
 import '../services/versiculo_service.dart';
 
 // ─── Persistência ───────────────────────────────────────────────────────────
@@ -179,6 +181,7 @@ final escalaRepoProvider = Provider((_) => EscalaRepository());
 final musicasRepoProvider = Provider((_) => MusicasRepository());
 final repertoriosRepoProvider = Provider((_) => RepertoriosRepository());
 final ausenciasRepoProvider = Provider((_) => AusenciasRepository());
+final frequenciaRepoProvider = Provider((_) => FrequenciaRepository());
 
 // ─── Dados ──────────────────────────────────────────────────────────────────
 final agendaProvider = FutureProvider<List<AgendaItem>>((ref) async {
@@ -320,4 +323,44 @@ final proximosJejunsProvider = FutureProvider<List<EscalaItem>>((ref) async {
 final compromissosDoMembroProvider =
     FutureProvider.family<List<EscalaItem>, String>((ref, nome) async {
   return ref.read(escalaRepoProvider).getByMembro(nome);
+});
+
+// ─── Frequência e Faltas ────────────────────────────────────────────────────
+final frequenciaPeriodoProvider =
+    StateProvider<PeriodoFrequencia>((ref) => PeriodoFrequencia.esteMes);
+
+final frequenciaMinisterioFiltroProvider =
+    StateProvider.autoDispose<String?>((ref) => null);
+
+final frequenciaRefreshProvider = StateProvider<int>((ref) => 0);
+
+final relatorioFrequenciaProvider =
+    FutureProvider.autoDispose<RelatorioFrequenciaResult>((ref) async {
+  final todosMembros = await ref.watch(membrosProvider.future);
+  final periodo = ref.watch(frequenciaPeriodoProvider);
+  final ministerio = ref.watch(frequenciaMinisterioFiltroProvider);
+  ref.watch(frequenciaRefreshProvider);
+  ref.watch(escalaDoMesProvider);
+
+  final intervalo = periodo.intervalo(DateTime.now());
+  return ref.read(frequenciaRepoProvider).gerarRelatorio(
+        todosMembros: todosMembros,
+        inicio: intervalo.inicio,
+        fim: intervalo.fim,
+        ministerioFiltro: ministerio,
+      );
+});
+
+final chamadaCultosRecentesProvider =
+    FutureProvider.autoDispose<List<EscalaItem>>((ref) async {
+  ref.watch(frequenciaRefreshProvider);
+  ref.watch(escalaDoMesProvider);
+  final agora = DateTime.now();
+  final hoje = DateTime(agora.year, agora.month, agora.day);
+  final inicio = hoje.subtract(const Duration(days: 45));
+  String fmtIso(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  return ref
+      .read(escalaRepoProvider)
+      .getPorPeriodo(fmtIso(inicio), fmtIso(hoje));
 });

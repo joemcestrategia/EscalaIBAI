@@ -92,6 +92,27 @@ CREATE TABLE IF NOT EXISTS ausencias (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS frequencia_membros (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  membro_id UUID REFERENCES membros(id) ON DELETE SET NULL,
+  membro_nome TEXT NOT NULL,
+  ministerio TEXT NOT NULL,
+  escala_id UUID REFERENCES escala(id) ON DELETE SET NULL,
+  data TEXT NOT NULL,
+  horario TEXT NOT NULL DEFAULT '',
+  tipo_atividade TEXT NOT NULL DEFAULT 'Culto',
+  descricao_atividade TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL,
+  motivo TEXT NOT NULL DEFAULT '',
+  registrado_por TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_frequencia_escala_id
+  ON frequencia_membros (escala_id)
+  WHERE escala_id IS NOT NULL;
+
 -- 2. DADOS INICIAIS PADRÃO
 INSERT INTO cfg_ministerios (nome) VALUES ('Louvor'), ('Mídia e Transmissão'), ('Recepção') ON CONFLICT DO NOTHING;
 INSERT INTO cfg_cultos (dia_semana, horario, tema) VALUES ('Domingo', '18:00', 'Culto da Família') ON CONFLICT DO NOTHING;
@@ -141,6 +162,10 @@ CREATE POLICY "Permitir tudo anon escala" ON escala FOR ALL USING (true) WITH CH
 ALTER TABLE ausencias ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir tudo anon ausencias" ON ausencias;
 CREATE POLICY "Permitir tudo anon ausencias" ON ausencias FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE frequencia_membros ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir tudo anon frequencia_membros" ON frequencia_membros;
+CREATE POLICY "Permitir tudo anon frequencia_membros" ON frequencia_membros FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. RECARREGAR O CACHE DO POSTGREST
 NOTIFY pgrst, 'reload schema';

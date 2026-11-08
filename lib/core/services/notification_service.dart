@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import '../models/agenda_item.dart';
 import '../models/escala_item.dart';
+import 'web_push_bridge.dart';
 
 class NotificationService {
   static final _notifications = FlutterLocalNotificationsPlugin();
@@ -127,7 +128,8 @@ class NotificationService {
         final nome = item.nome.trim();
         return nome.isNotEmpty &&
             nome != '[FALTA]' &&
-            item.statusConvite != 'FALTA';
+            item.statusConvite != 'FALTA' &&
+            item.statusConvite != 'FALTA_JUSTIFICADA';
       }).toList();
 
       // 1. Separar escalas de Jejum (agrupadas por data para não duplicar no mesmo dia)
@@ -445,7 +447,10 @@ class NotificationService {
     required String titulo,
     required String corpo,
   }) async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      await WebPushBridge.showForegroundNotification(titulo, corpo);
+      return;
+    }
     try {
       await _notifications.show(
         id: id,

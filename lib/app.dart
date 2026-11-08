@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,15 +118,40 @@ class _MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<_MainShell> {
   int _idx = 1; // 1 = Escala
+  StreamSubscription? _fgPushSub;
 
   @override
   void initState() {
     super.initState();
+    _fgPushSub = PushNotificationService.onForegroundMessage.listen((msg) {
+      if (!mounted) return;
+      final titulo = msg.notification?.title ??
+          (msg.data['title'] as String?) ??
+          (msg.data['titulo'] as String?);
+      final corpo = msg.notification?.body ??
+          (msg.data['body'] as String?) ??
+          (msg.data['corpo'] as String?);
+      if (titulo != null && titulo.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            content: Text(
+              corpo != null && corpo.isNotEmpty ? '$titulo\n$corpo' : titulo,
+            ),
+          ),
+        );
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final roleNotifier = ref.read(userRoleProvider.notifier);
       final membroId = roleNotifier.selectedMembroId;
       if (membroId != null) {
-        PushNotificationService.registerAndSaveToken(membroId);
+        PushNotificationService.registerAndSaveToken(
+          membroId,
+          promptIfNeeded: !kIsWeb,
+        );
       }
 
       // Checagem de atualização OTA
@@ -134,6 +161,12 @@ class _MainShellState extends ConsumerState<_MainShell> {
       _atualizarWidget();
       _agendarNotificacoes();
     });
+  }
+
+  @override
+  void dispose() {
+    _fgPushSub?.cancel();
+    super.dispose();
   }
 
   void _atualizarWidget() {

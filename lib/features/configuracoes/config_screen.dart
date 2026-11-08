@@ -13,6 +13,7 @@ import '../../core/models/compatibilidade.dart';
 import '../../core/models/ministerio.dart';
 import '../../core/services/update_service.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/push_notification_service.dart';
 import '../splash/quem_sou_eu_screen.dart';
 import '../../shared/widgets/app_widgets.dart';
 
@@ -305,6 +306,224 @@ class _MeuPerfilNotificacoesConfig extends ConsumerStatefulWidget {
 class _MeuPerfilNotificacoesConfigState
     extends ConsumerState<_MeuPerfilNotificacoesConfig> {
   bool _verHorariosAvisos = false;
+  PushRegistrationResult? _pushStatus;
+  bool _carregandoPush = false;
+  bool _testandoPush = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _atualizarStatusPush();
+  }
+
+  Future<void> _atualizarStatusPush() async {
+    final membroId = ref.read(userRoleProvider.notifier).selectedMembroId;
+    final res = await PushNotificationService.checkStatus(membroId);
+    if (mounted) {
+      setState(() => _pushStatus = res);
+    }
+  }
+
+  Future<void> _ativarNotificacoes() async {
+    final membroId = ref.read(userRoleProvider.notifier).selectedMembroId;
+    if (membroId == null || membroId.isEmpty) {
+      AppSnackbar.show(context, 'Selecione seu nome primeiro.', erro: true);
+      return;
+    }
+    setState(() => _carregandoPush = true);
+    try {
+      final res = await PushNotificationService.registerAndSaveToken(
+        membroId,
+        promptIfNeeded: true,
+      );
+      if (mounted) {
+        setState(() => _pushStatus = res);
+        AppSnackbar.show(
+          context,
+          res.message ??
+              (res.isSuccess
+                  ? 'Notificações ativadas neste aparelho!'
+                  : 'Não foi possível ativar notificações.'),
+          erro: !res.isSuccess,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregandoPush = false);
+    }
+  }
+
+  Future<void> _testarPush() async {
+    final membroId = ref.read(userRoleProvider.notifier).selectedMembroId;
+    if (membroId == null || membroId.isEmpty) {
+      AppSnackbar.show(context, 'Selecione seu nome primeiro.', erro: true);
+      return;
+    }
+    setState(() => _testandoPush = true);
+    try {
+      // Garante que o token esteja sincronizado antes de testar
+      final reg = await PushNotificationService.registerAndSaveToken(
+        membroId,
+        promptIfNeeded: true,
+      );
+      if (mounted) setState(() => _pushStatus = reg);
+      if (!reg.isSuccess) {
+        if (mounted) {
+          AppSnackbar.show(
+            context,
+            reg.message ?? 'Ative as notificações antes de testar.',
+            erro: true,
+          );
+        }
+        return;
+      }
+
+      final resp = await PushNotificationService.enviarNotificacaoTeste(membroId);
+      final sucesso = (resp['sucesso'] as num?)?.toInt() ?? 0;
+      if (mounted) {
+        if (sucesso > 0) {
+          AppSnackbar.show(
+            context,
+            'Notificação de teste enviada! Verifique a barra de avisos.',
+          );
+        } else {
+          AppSnackbar.show(
+            context,
+            'Servidor não conseguiu enviar para o token atual (${resp['message'] ?? resp}).',
+            erro: true,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppSnackbar.show(context, 'Erro ao enviar teste: $e', erro: true);
+      }
+    } finally {
+      if (mounted) setState(() => _testandoPush = false);
+    }
+  }
+
+  Widget _buildBlocoStatusPush(BuildContext context) {
+    final status = _pushStatus;
+    if (status == null) return const SizedBox.shrink();
+
+    final Color cor;
+    final IconData icone;
+    final String titulo;
+    final String subtitulo;
+
+    switch (status.status) {
+      case PushRegistrationStatus.registered:
+        cor = AppColors.sucesso;
+        icone = PhosphorIconsFill.bellRinging;
+        titulo = 'Notificações Ativas';
+        subtitulo = status.message ?? 'Este aparelho está pronto para receber avisos.';
+        break;
+      case PushRegistrationStatus.needsHomeScreenInstall:
+        cor = AppColors.alerta;
+        icone = PhosphorIconsBold.export;
+        titulo = 'Instale na Tela de Início (iPhone)';
+        subtitulo = status.message ??
+            'No Safari, toque em Compartilhar e depois em "Adicionar à Tela de Início".';
+        break;
+      case PushRegistrationStatus.denied:
+        cor = AppColors.perigo;
+        icone = PhosphorIconsBold.bellSlash;
+        titulo = 'Notificações Bloqueadas';
+        subtitulo = status.message ??
+            'Ative a permissão de notificações nas configurações do aparelho.';
+        break;
+      case PushRegistrationStatus.unsupported:
+        cor = context.textoMuted;
+        icone = PhosphorIconsRegular.bellSlash;
+        titulo = 'Indisponível neste Navegador';
+        subtitulo = status.message ?? 'Este navegador não suporta Web Push.';
+        break;
+      case PushRegistrationStatus.error:
+        cor = AppColors.perigo;
+        icone = PhosphorIconsBold.warningCircle;
+        titulo = 'Atenção nas Notificações';
+        subtitulo = status.message ?? 'Falha ao registrar notificações.';
+        break;
+      case PushRegistrationStatus.needsUserGesture:
+        cor = AppColors.alerta;
+        icone = PhosphorIconsBold.bell;
+        titulo = 'Ativar Notificações Push';
+        subtitulo = status.message ??
+            'Toque no botão abaixo para autorizar e vincular este aparelho.';
+        break;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: context.isDark ? 0.14 : 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cor.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icone, color: cor, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  titulo,
+                  style: AppTextStyles.bodySmall(
+                    color: context.textoPrimario,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitulo,
+            style: AppTextStyles.bodySmall(color: context.textoSecund),
+          ),
+          if (status.status != PushRegistrationStatus.needsHomeScreenInstall &&
+              status.status != PushRegistrationStatus.unsupported) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _carregandoPush ? null : _ativarNotificacoes,
+                  icon: _carregandoPush
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(PhosphorIconsBold.arrowsClockwise, size: 15),
+                  label: Text(
+                    status.isSuccess
+                        ? 'Sincronizar Aparelho'
+                        : 'Ativar Notificações',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _testandoPush ? null : _testarPush,
+                  icon: _testandoPush
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(PhosphorIconsBold.paperPlaneTilt, size: 15),
+                  label: const Text('Testar Push'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -370,14 +589,22 @@ class _MeuPerfilNotificacoesConfigState
                     role: role,
                     isReconfiguration: true,
                     onMemberSelected: () {
-                      if (mounted) setState(() {});
+                      if (mounted) {
+                        setState(() {});
+                        _atualizarStatusPush();
+                      }
                     },
                   ),
                 ),
               );
-              if (mounted) setState(() {});
+              if (mounted) {
+                setState(() {});
+                _atualizarStatusPush();
+              }
             },
           ),
+          const SizedBox(height: 12),
+          _buildBlocoStatusPush(context),
           const SizedBox(height: 10),
           InkWell(
             borderRadius: BorderRadius.circular(12),

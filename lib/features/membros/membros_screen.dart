@@ -9,6 +9,7 @@ import '../../core/models/membro.dart';
 import '../../core/models/funcao.dart';
 import '../../core/models/ministerio.dart';
 import '../../shared/widgets/app_widgets.dart';
+import 'frequencia_screen.dart';
 
 class MembrosScreen extends ConsumerStatefulWidget {
   const MembrosScreen({super.key});
@@ -17,12 +18,27 @@ class MembrosScreen extends ConsumerStatefulWidget {
   ConsumerState<MembrosScreen> createState() => _MembrosScreenState();
 }
 
-class _MembrosScreenState extends ConsumerState<MembrosScreen> {
+class _MembrosScreenState extends ConsumerState<MembrosScreen>
+    with SingleTickerProviderStateMixin {
   final _buscaController = TextEditingController();
+  late final TabController _tabController;
+  int _abaAtual = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_abaAtual != _tabController.index && mounted) {
+        setState(() => _abaAtual = _tabController.index);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _buscaController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -88,17 +104,41 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
       backgroundColor: context.bgPrincipal,
       appBar: AppBar(
         title: Text('Equipe', style: AppTextStyles.heading()),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openModal(context, ref, null),
-        icon: const Icon(PhosphorIconsBold.userPlus, size: 20),
-        label: Text(
-          'Novo Membro',
-          style: AppTextStyles.button(color: Colors.white),
+        bottom: AppSegmentedTabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Integrantes'),
+            Tab(text: 'Faltas e Frequência'),
+          ],
         ),
       ),
-      body: Column(
+      floatingActionButton: _abaAtual == 0
+          ? FloatingActionButton.extended(
+              onPressed: () => _openModal(context, ref, null),
+              icon: const Icon(PhosphorIconsBold.userPlus, size: 20),
+              label: Text(
+                'Novo Membro',
+                style: AppTextStyles.button(color: Colors.white),
+              ),
+            )
+          : FloatingActionButton.extended(
+              onPressed: () => abrirModalFaltaAvulsa(
+                context,
+                ref,
+                ministerioInicial:
+                    ref.read(frequenciaMinisterioFiltroProvider),
+              ),
+              icon: const Icon(PhosphorIconsBold.calendarX, size: 20),
+              label: Text(
+                'Falta Avulsa',
+                style: AppTextStyles.button(color: Colors.white),
+              ),
+            ),
+      body: TabBarView(
+        controller: _tabController,
         children: [
+          Column(
+            children: [
           // Busca ampla e limpa
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -274,6 +314,9 @@ class _MembrosScreenState extends ConsumerState<MembrosScreen> {
               ),
             ),
           ),
+            ],
+          ),
+          const FrequenciaTabView(),
         ],
       ),
     );
